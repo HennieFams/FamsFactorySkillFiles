@@ -113,11 +113,28 @@ task description, not the other way around.
 
 ## Time window
 
-Each daily run checks the **last 48 hours** of data, ending at the run's start
-time. This is a rolling window, not aligned to the 06:00 SAST boundary — the
-boundary rule from FAMS Database Core governs how daily aggregates are *framed
-and labeled* in the report, not the width of this window. State the window's
-exact start/end timestamps (in SAST) at the top of the report.
+Each daily run checks **48 hours** of data, but the window's anchor point
+differs by client — get this wrong and you silently shift or duplicate a
+day's data:
+
+- **ShipTech** — anchored to the most recently completed **06:00 SAST**
+  boundary (per FAMS Database Core's daily-boundary rule). The window is
+  `[anchor − 48h, anchor)`, where `anchor` is the most recent 06:00 SAST at or
+  before the run's start time.
+- **RAM Couriers and PMC Phalaborwa** — anchored to the most recently completed
+  **midnight SAST**. The window is `[anchor − 48h, anchor)`, where `anchor` is
+  the most recent midnight SAST at or before the run's start time.
+
+**The container's system clock is UTC, not SAST.** South Africa does not
+observe daylight saving, so SAST is always UTC+2 — but you must convert
+explicitly rather than trust local system time to already be SAST. Compute
+each anchor in SAST, then convert to UTC before querying (the database's
+timestamps' own timezone should be confirmed against FAMS Database Core rather
+than assumed).
+
+State each client's exact window start/end, in both SAST and UTC, at the top
+of that client's report — this is a common source of silent off-by-one-day
+errors and should be auditable at a glance.
 
 ## What to check, per account
 
@@ -136,20 +153,18 @@ window:
 Use `UnqTrID`, `Recnumber`, and `TransactionID` per their distinct roles (see
 FAMS Database Core) — never join across these as if they were interchangeable.
 
-## Reporting
+## Reporting: three separate PDFs, one per client
 
-Structure the report by client, then by account:
+Produce **three distinct PDF files**, not one combined report — ShipTech's PDF
+covers only ShipTech's 18 accounts, and so on. Each PDF is structured by
+account:
 
 ```
-## ShipTech (18 accounts)
-- 321 — PMB - Logistics: <clean | N findings>
-- 328 — Cato Ridge: ...
-  ...
+FAMS Integrity Report — ShipTech
+Window: 2026-09-22 06:00 SAST → 2026-09-24 06:00 SAST (04:00 → 04:00 UTC)
 
-## RAM Couriers (2 accounts)
-...
-
-## PMC Phalaborwa (1 account)
+321 — PMB - Logistics: <clean | N findings>
+328 — Cato Ridge: ...
 ...
 ```
 
@@ -157,6 +172,69 @@ For each finding: which account, which check, the row count or specific
 records involved, and confidence (per the evidence standard in the CEO's job
 description — claim + source + evidence, not just a number). A clean account
 still gets a one-line entry; silence is not a status.
+
+Generate the PDFs with the `pdfkit` npm package (pure JS, no native
+dependencies) — install once per run if not already present:
+
+```bash
+npm install pdfkit --no-save
+```
+
+Name each file `FAMS-Integrity-<Client>-<YYYY-MM-DD>.pdf`, e.g.
+`FAMS-Integrity-ShipTech-2026-09-24.pdf`, using the date the window ends.
+
+## Emailing the reports
+
+After generating all three PDFs, email each one separately using the internal
+FAMS endpoint — this call needs no API key or auth header (it is
+network-trust only), just a plain HTTPS POST:
+
+```js
+const https = require('https');
+
+function sendReportEmail({ toAddress, subject, bodyHtml, pdfBuffer, reportName }) {
+  const payload = JSON.stringify({
+    email: toAddress,
+    subject,
+    body: bodyHtml,
+    fileName: `${reportName}.pdf`,
+    fileContentBase64: pdfBuffer.toString('base64'),
+  });
+  return new Promise((resolve, reject) => {
+    const req = https.request(
+      'https://api24.fams.co.za/api/SendGrid/SendMessageEmailWithAttachment',
+      { method: 'POST', headers: { 'Content-Type': 'application/json', 'Content-Length': Buffer.byteLength(payload) } },
+      (res) => {
+        if (res.statusCode >= 200 && res.statusCode < 300) resolve(res.statusCode);
+        else reject(new Error(`Send failed: HTTP ${res.statusCode}`));
+      },
+    );
+    req.on('error', reject);
+    req.write(payload);
+    req.end();
+  });
+}
+```
+
+The endpoint accepts **one recipient per call** — there is no comma-separated
+or list form. Send each of the three client PDFs to each of the four
+recipients separately (12 calls total per run):
+
+```
+hennie@fams.co.za
+franco@fams.co.za
+schalk@fams.co.za
+werner@fams.co.za
+```
+
+Subject line: `FAMS Integrity Report — <Client> — <YYYY-MM-DD>`. Keep the HTML
+body short — a one-line summary (e.g. "3 findings across 18 accounts, see
+attached") is enough; the PDF carries the detail.
+
+If any of the 12 sends fails, report the failure in the issue comment (which
+recipient, which client, the HTTP status) rather than silently retrying more
+than once. Do not treat a partial send (some recipients succeeded, others
+didn't) as a reason to re-send to everyone — retry only the failed ones, once.
 
 ## Prohibited
 
