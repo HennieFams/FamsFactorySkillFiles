@@ -25,9 +25,22 @@ connect, and what to report.
 All FAMS data for these clients lives in a single shared database. There is one
 connection, and the check loops over `AccountID` grouped by client.
 
-**ShipTech (PTY) LTD** — 18 accounts:
-321, 328, 345, 346, 350, 353, 354, 360, 361, 365, 373, 377, 378, 383, 389, 394,
-397, 404
+**ShipTech (PTY) LTD** — 18 accounts per the account master, but only 17 have
+ever actually appeared in confirmed reporting data:
+321, 328, 345, 346, 350, 353, 354, 360, 361, 365, 373, **377**, 378, 383, 389,
+394, 397, 404
+
+**⚠️ Unresolved discrepancy — do not silently resolve this either way.**
+AccountID `377` ("Retail (Zimbabwe)" per the account master) does **not**
+appear in the confirmed 17-account ShipTech map that `fams-daily-report` has
+validated across multiple reporting windows. This could mean it's a
+legitimate account with no activity in the windows checked so far, or there's
+a real reason it doesn't belong in a SAST-anchored daily check (different
+system, currency, or timezone for Zimbabwe operations). Include it in the
+check, but if it genuinely has zero rows across the whole 48-hour window,
+report that explicitly as "no data — unconfirmed account, needs owner
+sign-off" rather than either silently treating it as clean or silently
+dropping it from the report.
 
 **RAM Couriers** — 2 accounts:
 390, 391
@@ -38,6 +51,44 @@ connection, and the check loops over `AccountID` grouped by client.
 Treat each client's accounts as one group in the report. An anomaly in one
 ShipTech depot does not need escalating the same way an anomaly affecting all
 18 would.
+
+## ShipTech-specific known patterns (confirmed, not hypothetical)
+
+These are empirically confirmed across multiple real reporting windows —
+treat them as a starting prior, but don't skip re-checking when the evidence
+doesn't match:
+
+- **Tank-linked offload equipment** (MAC-format `TransactionID`, non-standard
+  `Recnumber`, otherwise looks like "unexplained dispensing"): confirmed at
+  Cato Ridge (EquipmentID 26409), Piet Retief (30817); recurring but still
+  pending account-owner sign-off at Nelspruit (31602), TWK Interlink (29307),
+  Kokstad (29365), PMB (37571). Don't treat these as fresh anomalies each run,
+  but don't add a new EquipmentID to this list without owner confirmation
+  either.
+- **Recnumber `4627x+` batch series** — a large-volume (600–40,000+ L)
+  transfer/offload record with a MAC-prefixed `TransactionID` on one of the
+  equipment IDs above is a known, confirmed pattern, not a manual-entry or
+  fraud indicator, even though it falls outside the normal batch-recnumber
+  format.
+- **Confirmed duplicate-write bug (TWK Interlink, PMB)**: the same physical
+  transfer/offload event gets written to `UsageDispensing` twice — once via
+  the batch-transfer import, once via `importFams` — seconds apart, same
+  `TransactionID`/`UnqTrID`/`Volume`/`EquipmentID`. If a duplicate-transaction
+  finding matches this exact signature, cite the known bug rather than
+  reporting it as a generic new duplicate.
+- **Telemetry-outage false positive**: before reporting a low reconciliation
+  percentage or a large "unexplained dispensing" total as a possible fraud or
+  data-integrity issue, check whether the raw device tables
+  (`UsageDispensingAndroid`/`UsageDispensingIOT`) simply stopped reporting for
+  a stretch of hours while `UsageDispensing` kept logging normally through a
+  different path. A real outage shows as a large gap in consecutive
+  `Createdate` values, not an even trickle — cross-check against `Stock`/ATG
+  readings for the same store to confirm a site-wide outage.
+- **Cross-day matching**: a transaction can straddle the day boundary (e.g.
+  23:48 on day N) and simply not exist in the file whose own window starts at
+  the boundary on day N+1. When checking whether something is "missing,"
+  search the full 48-hour window's data, not just the half of it closer to
+  the event.
 
 ## Connecting
 
