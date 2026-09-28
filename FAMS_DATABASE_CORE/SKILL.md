@@ -8,8 +8,8 @@ description: >
   migration rule. Don't use for API or frontend work.
 metadata:
   owner: Hennie
-  status: DRAFT
-  lastValidated: null
+  status: VALID
+  lastValidated: 2026-09-28
 ---
 
 # FAMS Database Core
@@ -21,13 +21,25 @@ SQL Server (Azure SQL). Read this before writing a single query against FAMS dat
 FAMS tables fall into three roles, and picking the wrong one silently produces wrong
 numbers:
 
-- **Canonical** — the agreed source for a fact.
-- **Decoded** — parsed or normalised from raw payloads.
-- **Raw fallback** — used only when the canonical and decoded rows are absent.
+- **Canonical** — `UsageDispensing`. The agreed source for a dispensing transaction:
+  `ID` (PK), `AccountID`/`StoreID`/`EquipmentID` (scoping), `Volume`/`OrigVolume`,
+  `Createdate`, `TransactionID`, `UnqTrID`, `InformationRec` (JSON), `Recnumber`,
+  `AllocationID`/`AllocationID2`, `EquipmentCostCentreID`, `ProductID`, `Hour`/`KM`.
+- **Decoded** — `UsageDispensingIOT` (IOT-device-reported version; joins to
+  `UsageDispensing` and `UsageDispensingAndroid` on `(AccountID, TransactionID)`),
+  `UsageDispensingAndroid` (Android-handheld log; volume via
+  `ABS(TotalizerEnd - Totalizer)`), and the raw telemetry tables `IOTData_FMS` /
+  `IOTData_ATG` / `IOTData_Notification` / `IOTData_Error`, which carry `RecordTypeId`
+  and `TypeID` as decoded columns (not just inside the JSON blob) alongside
+  `DeviceId`/`DeviceAlias` and a `TelementryData` JSON blob.
+- **Raw fallback** — `TempTableDataJson`. Raw inbound JSON payloads keyed by
+  `Macaddress` (→ `Store.Macaddress`), with an `errorid` flag. Used only when the
+  canonical and decoded rows are absent; not consumed by the automated daily check,
+  useful for manual investigation of a specific disputed transaction.
 
-> TO CONFIRM (Hennie): list the actual table names under each role before this skill
-> moves from DRAFT to VALID. An agent must not guess which table is canonical for a
-> given fact.
+Supporting tables: `Account`/`Store`/`Equipment` (Account.name searchable via LIKE;
+Store.AccountID and Equipment.AccountID are FKs; Equipment.[tag] is the physical/RFID
+tag), `Stock` (ATG tank readings), `TANK` (case-insensitive with `Tank`).
 
 ## Field semantics that are routinely misread
 
@@ -37,14 +49,63 @@ numbers:
 - **Device identity** is established by `StoreID` + MAC address. Use that pair when
   the question is "which device".
 - **`TypeID`** carries different meanings in `IOTData_FMS` and in `IOTData_ATG`. Never
-  carry an interpretation across the two tables.
+  carry an interpretation across the two tables. Every row also carries a separate
+  **`RecordTypeId`** (which table/envelope this row belongs to — constant per table:
+  `1`=FMS, `2`=ATG, `99`=Notification, `123`=FMC) — conflating `RecordTypeId` with
+  `TypeID` was a real, confirmed bug (see below). Full mapping:
+
+  | RecordTypeId | Table | TypeID | Meaning |
+  |---|---|---|---|
+  | 1 | FMS | 1 | Dispensing |
+  | 1 | FMS | 2 | Transfer |
+  | 1 | FMS | 3 | Offloading |
+  | 1 | FMS | 4 | Complete (transaction-complete marker, not itself a movement) |
+  | 2 | ATG | 1 | Level (routine tank reading) |
+  | 2 | ATG | 2 | Received (fill complete) |
+  | 2 | ATG | 3 | RapidDrop (drop complete) |
+  | 2 | ATG | 4 | ReceivingStart (fill start) |
+  | 2 | ATG | 5 | RapidDropStart (drop start) |
+  | 2 | ATG | 99 | ATGError (sensor-fault flag) |
+  | 99 | Notification | 1 | Startup |
+  | 99 | Notification | 2 | NotifyTag |
+  | 99 | Notification | 3 | NoFlow |
+  | 99 | Notification | 9 | DispenseDuringFill |
+  | 99 | Notification | 10 | Recovery alert |
+  | 99 | Notification | 124 | DispTransactionComplete — event-end marker |
+  | 99 | Notification | 125 | DispStartNow — event-start marker |
+  | 99 | Notification | 132 | BTLinkLost |
+  | 99 | Notification | 205 | ATGOverfill |
+  | 123 | FMC | 1 | Power |
+  | 123 | FMC | 2 | Override |
+
+  (Full list including minor notification codes: `datasets/IOTRecordType.csv` in the
+  `fams-integrity` skill.) **Open question, not yet resolved**: `RecordTypeId=123`
+  (FMC) doesn't correspond to any documented base table — if a raw `IOTData_FMC`
+  table exists, confirm its structure before relying on it.
+
+  **Corrected 2026-08-21**: FMS TypeID 2/3 had previously been documented and coded
+  backwards (as Offloading/Receiving). The correct mapping is 2=Transfer,
+  3=Offloading, confirmed by the account owner's own `IOTRecordType.csv`. TypeID 4
+  ("Complete") wasn't recognized at all and was being silently flagged as an
+  unexpected/unknown TypeID. Treat any report generated before this date as suspect
+  on this point.
+
 - **`UnqTrID`**, **`Recnumber`** and **`TransactionID`** are three distinct fields with
   three distinct roles. They are not interchangeable keys, and joining on the wrong one
-  produces duplicates or silent row loss.
-
-> TO CONFIRM (Hennie): write out the exact role of each of the three fields, and the
-> `TypeID` value meanings per table. These are the facts agents most need and most
-> easily invent.
+  produces duplicates or silent row loss:
+  - **`TransactionID`** — the legacy transaction identifier field on
+    `UsageDispensing`, used to join across `UsageDispensing`, `UsageDispensingIOT`,
+    and `UsageDispensingAndroid` on `(AccountID, TransactionID)`. Also present inside
+    `InformationRec`'s JSON blob, but **the key name is inconsistent across
+    accounts** — seen as `$.transactionID`, `$.transactionId`, and `$.TransactionID`.
+    Always detect the correct key per account before backfilling from JSON.
+  - **`UnqTrID`** — the reconciled unique transaction ID. `'N/A'` or `NULL` means the
+    transaction is unreconciled — this is the field that actually tells you whether
+    reconciliation succeeded, not `TransactionID`.
+  - **`Recnumber`** — provenance/import-batch marker, e.g. `'manualAdd'`,
+    `'importFams'`, or a dated/numeric batch code. A value outside the known batch
+    codes is a candidate (not automatic proof) for a manual entry — confirm known
+    batch values with the account owner before flagging based on this alone.
 
 ## Daily boundary
 
