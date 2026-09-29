@@ -20,6 +20,35 @@ roles, field semantics, and the 06:00 SAST daily boundary. This skill covers the
 recurring integrity-check job specifically: which accounts to check, how to
 connect, and what to report.
 
+## Going deeper: FAMS Integrity
+
+[FAMS Integrity](../FAMS_INTEGRITY/SKILL.md) is the full investigation knowledge
+base this daily check is a fixed, automated subset of — algorithms, an anomaly
+library, business rules, and per-domain investigation guides. You don't need to
+read all of it every run; consult the specific file when a finding needs deeper
+reasoning than the four automated checks below provide, or when something looks
+like it might be one of the categories out of scope for this daily job (see
+below). Each of this skill's checks traces back to a canonical file there:
+
+| This check | FAMS Integrity source |
+|---|---|
+| Duplicate transactions | `algorithms/duplicate-detection.md` |
+| Missing TransactionID, IOT/Android/Log reconciliation | `algorithms/atg-reconciliation.md`, `anomaly-library/transaction-integrity.md` |
+| Suspicious gaps / data-gap handling | `anomaly-library/data-quality.md` |
+| Tank-linked offload equipment, manual-entry candidates | `anomaly-library/equipment-integrity.md` |
+| Tank opening/closing/capacity | `investigation/tank.md` |
+| ATG fill/drop events, erratic-telemetry | `investigation/atg.md`, `algorithms/atg-reconciliation.md` |
+| Communication health / near-empty-tank downgrade | `anomaly-library/device-integrity.md`, `investigation/devices.md` |
+
+**Deliberately out of scope for this automated daily job** (this stays true
+even though you now have the deeper skill available): fraud indicators,
+employee-level behavioural analysis, equipment/nozzle/cost-centre validation,
+seasonal and predictive anomaly detection, and SARS Schedule 6 reporting. If
+something in this run's data looks like one of these, say so as a finding
+(status Monitor or Investigate, per the categories below) and note that it
+needs a human using FAMS Integrity directly — don't independently reach a
+fraud or SARS-compliance conclusion inside this automated daily report.
+
 ## Scope: three clients, one shared database
 
 All FAMS data for these clients lives in a single shared database. There is one
@@ -204,27 +233,138 @@ window:
 Use `UnqTrID`, `Recnumber`, and `TransactionID` per their distinct roles (see
 FAMS Database Core) — never join across these as if they were interchangeable.
 
-## Reporting: three separate PDFs, one per client
+## Reporting: one branded management report per client, plus a technical workbook
 
-Produce **three distinct PDF files**, not one combined report — ShipTech's PDF
-covers only ShipTech's 18 accounts, and so on. Each PDF is structured by
-account:
+Produce **three distinct PDF files**, one per client (ShipTech, RAM Couriers,
+PMC Phalaborwa) — not one combined cross-client report. Each is a management
+report covering that client's whole account portfolio, matching this
+structure (this is the finalised, already-proven format used elsewhere at
+Tecmo Automation for the same kind of daily check — follow it exactly rather
+than reverting to a flat per-account list). Use the same full structure for
+RAM Couriers (2 accounts) and PMC Phalaborwa (1 account) as for ShipTech — a
+one- or two-row Portfolio Summary table is still a table; don't shrink the
+report's structure just because there's less to put in it:
 
-```
-FAMS Integrity Report — ShipTech
-Window: 2026-09-22 06:00 SAST → 2026-09-24 06:00 SAST (04:00 → 04:00 UTC)
+**Header** — client name and reporting window, e.g. "ShipTech (PTY) LTD —
+Portfolio | 18 accounts" and "Reporting window: 2026-09-27 06:00 to
+2026-09-29 06:00 SAST". Use a simple styled text header (bold client name,
+an accent rule) rather than an external logo image — no image asset ships
+with this skill, and inventing one is out of scope.
 
-321 — PMB - Logistics: <clean | N findings>
-328 — Cato Ridge: ...
-...
-```
+**01 Quick Stats** — six KPI cards, computed exactly as follows, never as raw
+row counts:
+- **Anomalies detected** — count of *grouped* findings with status
+  Investigate or Monitor. A device with 600 repeated identical errors is
+  ONE finding, not 600 — see grouping discipline below.
+- **Total fuel dispensed** — sum of dispensing `Volume` in the window,
+  across the whole client portfolio.
+- **Reconciliation %** — `(total_litres - unexplained_litres -
+  mismatch_litres) / total_litres`. State the numerator and denominator
+  every time. Never fold an IOT-internal-only gap into this number.
+- **Sites with possible fuel loss** — count of distinct accounts with an
+  open possible-fuel-loss finding (status Investigate specifically).
+- **Sites with communication failures** — count of distinct devices over
+  the communication-error tolerance (10 per device per window; see
+  Tolerances below) — not just devices with any errors at all.
+- **Tanks at risk of running dry** — a forward 24h/48h/72h forecast needs
+  multi-day consumption history. This is a single 48-hour check, so report
+  **0 with an explicit caveat** ("insufficient history for a run-dry
+  forecast") rather than inventing a projection from one window.
 
-For each finding: which account, which check, the row count or specific
-records involved, and confidence (per the evidence standard in the CEO's job
-description — claim + source + evidence, not just a number). A clean account
-still gets a one-line entry; silence is not a status.
+No financial values or fuel prices appear anywhere in this report.
 
-Generate the PDFs with the `pdfkit` npm package (pure JS, no native
+**02 Executive Summary** — one prose paragraph covering the window, the
+overall reconciliation picture, and calling out (by name) anything that
+needs attention this run, plus which sites had no findings.
+
+**03 Portfolio Summary** — a table, one row per account: Account name
+(client-name prefix auto-stripped — compute this from the actual account
+names each run, e.g. "ShipTech (PTY) LTD - Cato Ridge" → "Cato Ridge", not
+hardcoded to one client's naming convention), Dispensed (L), Recon %,
+Anomalies, Comm. Fail. Use `n/a` for Recon % on an account with zero
+dispensing volume in the window rather than a divide-by-zero or a fabricated
+percentage.
+
+**04 Items for Management (Investigate)** — a table for every finding
+classified `Investigate` only: Account, Category, Affected (the litres or
+count involved), Note (what happened, possible cause using the language
+discipline below, and a recommended next step). Omit this whole section if
+there are none this run — don't render an empty table.
+
+**05 Monitoring Items** — findings classified `Monitor`, grouped by kind
+(e.g. "ATG telemetry noise" as a table of Account/Tank/Window; "Communication
+errors explained by near-empty tanks" as a table of Account/Device/Errors/
+Note). Add a one-line caveat under each sub-table explaining why these don't
+need action (e.g. "most coincide with normal daytime dispensing activity...
+no action required unless a specific tank is also flagged under possible fuel
+loss").
+
+**06 No Action Required** — a short bullet list: which accounts had zero
+findings this period, the count of sites/tanks with a confirmed
+possible-fuel-loss finding (should match Quick Stats), and a line confirming
+no financial values/individuals/due dates are assigned per reporting policy.
+
+**07 Data Quality & Methodology Note** — state plainly which optional data
+sources this run actually had (e.g. `UsageDispensingAndroid`,
+`UsageTransfer`/`UsageReceiving`, `IOTData_ATG`), and for anything missing,
+say so explicitly rather than treating an unavailable source as "clean" — the
+correct posture for a missing source is "unverifiable with current data," not
+silence or a false all-clear.
+
+**08 Technical Appendix** — a short pointer to the companion Excel workbook
+(see below) and what's in it.
+
+### Status vocabulary — exactly these three, nothing else
+
+- **Investigate** — real discrepancy, possible fuel loss, device over
+  tolerance, tank variance over tolerance, unexplained transaction, duplicate
+  affecting totals, possible manual entry, run-dry risk, or missing data that
+  blocks reconciliation.
+- **Monitor** — minor/incomplete evidence, within tolerance but unusual, a
+  repeated pattern that might matter later, or a data-confidence warning
+  (e.g. erratic telemetry) that isn't itself a confirmed event.
+- **No action required** — fully reconciled, within tolerance, a rapid-drop
+  event fully explained, a delayed record that arrived within grace period,
+  a device at or under the error tolerance, or purely informational.
+
+Never state a due date, assigned individual, or responsible team against a
+finding — only what happened, why it matters, possible cause(s), evidence,
+and a recommended next step.
+
+### Tolerances
+
+- Volume/tank variance: 1% or less is acceptable (`volume_tolerance_pct`).
+- Communication errors: up to 10 per device per window is acceptable
+  (`comm_error_tolerance`). If the erroring device's tank volume is flat and
+  near-zero throughout (≤10 L, `near_empty_tank_litres`), that's a
+  near-empty-tank explanation (Monitor), not a device fault.
+- A missing Operator alone is never an anomaly.
+- Zero-volume dispensing rows with no raw match are informational, not
+  anomalies — don't count their litres in the unexplained total.
+- An "unexplained" dispensing transaction on a confirmed tank-linked offload
+  `EquipmentID` (see FAMS Integrity Check's ShipTech-specific known patterns
+  above) is confirmed offloading, not a dispensing gap.
+- A `Recnumber` outside the known batch-import values is a candidate for a
+  possible manual entry, not automatic proof — this business has historically
+  had no manual dispensing entries, so treat an out-of-set value as worth
+  flagging, not silently accepting.
+
+### Language discipline
+
+Always say "possible cause" unless proven. Never assert theft, fraud, or
+confirmed loss from tank/telemetry data alone — only "possible unexplained
+fuel loss," paired with an explicit statement that the finding is unconfirmed
+and needs field verification (a physical dip-stick check, invoice
+reconciliation, etc.).
+
+### Grouping discipline
+
+Group findings by shared site/device/tank/category/root-cause/time-window.
+Preserve every underlying record as evidence (in the technical workbook, not
+the PDF), but never surface hundreds of identical repeated errors as hundreds
+of separate management findings — that buries the one that actually matters.
+
+Generate the PDF with the `pdfkit` npm package (pure JS, no native
 dependencies) — install once per run if not already present:
 
 ```bash
@@ -233,6 +373,31 @@ npm install pdfkit --no-save
 
 Name each file `FAMS-Integrity-<Client>-<YYYY-MM-DD>.pdf`, e.g.
 `FAMS-Integrity-ShipTech-2026-09-24.pdf`, using the date the window ends.
+
+### Companion technical workbook
+
+Alongside each client's PDF, produce one Excel workbook with five sheets,
+using the `exceljs` npm package (install once per run if not already
+present: `npm install exceljs --no-save`):
+
+- **Portfolio Summary** — same rows/columns as the PDF's Portfolio Summary
+  table.
+- **All Findings** — every Investigate/Monitor finding, one row each, tagged
+  by account, with the full evidence (not summarized) that backs it.
+- **Dispensing Detail** — every dispensing transaction across every account
+  in the client's portfolio, with its classification (per the TypeID table
+  in FAMS Database Core) and which check (if any) flagged it.
+- **Tank Reconciliation** — opening/closing/capacity detail per tank, every
+  account.
+- **Data Gaps & Audit** — every assumption, estimate, and missing data
+  source used this run, per account — this is where "unverifiable with
+  current data" gets recorded in full rather than just mentioned in prose.
+
+Name it `FAMS-Integrity-<Client>-Technical-<YYYY-MM-DD>.xlsx`. Don't email
+this workbook to the four recipients (see below) — attach it to the issue as
+a work product instead, and reference it by name in the PDF's Technical
+Appendix section, so it's available for deeper investigation without adding
+four more email sends per client every day.
 
 ## Emailing the reports
 

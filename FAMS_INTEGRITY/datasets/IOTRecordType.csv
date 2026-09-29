@@ -1,0 +1,43 @@
+﻿RecordTypeId,TypeID,Name, Code
+1,1,FMS,Dispensing
+1,2,FMS,Transfer
+1,3,FMS,Offloading
+1,4,FMS,Complete
+2,1,ATG,Level
+2,2,ATG,Received
+2,3,ATG,RapidDrop
+2,4,ATG,ReceivingStart
+2,5,ATG,RapidDropStart
+2,99,ATG,ATGError
+99,1,Notification,Startup
+99,2,Notification,NotifyTag
+99,3,Notification,NoFlow
+99,4,Notification,EntryAccount
+99,5,Notification,EntryCash
+99,6,Notification,EntryJobOrder
+99,7,Notification,EntryEmplAcc
+99,8,Notification,SelectNozzle
+99,9,Notification,DispenseDuringFill
+99,105,Notification,DispenseMaxLitres
+99,114,Notification,Verify1Fail
+99,116,Notification,Verify2Fail
+99,117,Notification,WrongTagType
+99,118,Notification,GetInfoFail
+99,123,Notification,PauseComplete
+99,124,Notification,DispTransactionComplete
+99,125,Notification,DispStartNow
+99,126,Notification,DispDriver
+99,127,Notification,DispAttendant
+99,128,Notification,DispAuth
+99,129,Notification,DispMisc
+99,130,Notification,DispKmHrs
+99,131,Notification,DispAlloc
+99,132,Notification,BTLinkLost
+99,133,Notification,ProtTokheimStatus
+99,134,Notification,ProdTotals
+99,205,Notification,ATGOverfill
+99,402,Notification,StartWithTag
+99,10,Notification,"Recovery alert "
+99,12,Notification,Device Info
+123,1,FMC,Power
+123,2,FMC,Override
