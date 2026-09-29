@@ -374,6 +374,83 @@ npm install pdfkit --no-save
 Name each file `FAMS-Integrity-<Client>-<YYYY-MM-DD>.pdf`, e.g.
 `FAMS-Integrity-ShipTech-2026-09-24.pdf`, using the date the window ends.
 
+### PDF styling — this is load-bearing, not cosmetic
+
+A management report with words split mid-character or a KPI card that reads
+as a bare wrapped text block isn't a finished deliverable. **Every** call to
+`doc.text()` inside a table cell or KPI card **must** pass an explicit
+`width` option — this is what makes `pdfkit` wrap at word boundaries instead
+of an uncontrolled overflow that can visually break mid-word. Never place
+text at a fixed `x`/`y` with no `width` inside anything resembling a column
+or a box.
+
+**Page setup**: A4, `size: 'A4'`, margins of `50` on all sides, `Helvetica`
+family (built into `pdfkit`, no extra install) for body text, `Helvetica-Bold`
+for headings/KPI numbers.
+
+**Colors** (reuse this exact palette — it's the house style already in use
+elsewhere at Tecmo Automation for this same kind of report): orange `#E8720C`
+for section numbers/accents, navy `#1F2A44` for headings, dark `#2B2B2B` for
+table header fills, light `#F4F1EC` for KPI-card backgrounds and table
+zebra-striping.
+
+**Table columns**: compute each column's width from the actual content that
+will go in it (measure with `doc.widthOfString()` against a sample of the
+real values for that run, plus padding), not equal division of the page
+width — a "Note" column needs far more room than an "Account" column. If the
+computed widths don't fit the content width, reduce font size before you
+start shrinking a column below a safe minimum (~60pt), and never let a column
+get narrow enough that a word inside it can't fit on one wrapped line by
+itself.
+
+**Worked pattern** — a header-styled, word-wrapped table row (adapt column
+count/widths per section; row height must be computed from the tallest
+cell's actual wrapped line count, not a fixed guess):
+
+```js
+function drawTableRow(doc, x, y, cells, colWidths, opts = {}) {
+  const { isHeader = false, fillColor = null, font = 'Helvetica', fontSize = 9, padding = 6 } = opts;
+  doc.font(isHeader ? 'Helvetica-Bold' : font).fontSize(fontSize);
+
+  // Row height = tallest wrapped cell, computed BEFORE drawing anything
+  let rowHeight = 0;
+  cells.forEach((cell, i) => {
+    const h = doc.heightOfString(String(cell), { width: colWidths[i] - padding * 2 });
+    rowHeight = Math.max(rowHeight, h + padding * 2);
+  });
+
+  if (fillColor) {
+    doc.rect(x, y, colWidths.reduce((a, b) => a + b, 0), rowHeight).fill(fillColor);
+  }
+  doc.fillColor(isHeader ? '#FFFFFF' : '#2B2B2B');
+
+  let cx = x;
+  cells.forEach((cell, i) => {
+    doc.text(String(cell), cx + padding, y + padding, {
+      width: colWidths[i] - padding * 2,   // <- the width option is what prevents mid-word splitting
+      align: 'left',
+    });
+    cx += colWidths[i];
+  });
+
+  return rowHeight; // caller advances y by this before the next row
+}
+```
+
+**KPI cards**: fixed-size boxes (e.g. ~150×70pt), arranged in a 3×2 grid, each
+with a filled `#F4F1EC` rounded rect (`doc.roundedRect(x, y, w, h,
+6).fill(...)`), the number in large bold (`fontSize(24)`) centered, and the
+label below it in smaller regular text (`fontSize(9)`) — always with a
+`width` matching the card's inner width so a longer label (e.g. "Sites with
+communication failures") wraps onto two lines within the card rather than
+overflowing it.
+
+**Before finalizing**: after generating each PDF, do a final sanity pass —
+re-extract its text (e.g. a quick `pdf-parse` read, or re-reading your own
+layout computation) and check for any word that got split mid-character. If
+you find one, that column was too narrow for its content; widen it or reduce
+font size and regenerate, rather than shipping a report with broken text.
+
 ### Companion technical workbook
 
 Alongside each client's PDF, produce one Excel workbook with five sheets,
