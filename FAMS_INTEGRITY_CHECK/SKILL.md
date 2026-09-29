@@ -264,6 +264,23 @@ Below the banner: client name and account count, then the reporting window,
 in the same style as before (bold client name, `#1F2A44` navy, an accent
 rule underneath).
 
+**Use the real image file, not a substitute.** Verify
+`assets/fams_header_banner.jpg` actually exists and `doc.image()` loads it
+without throwing before you generate anything — if it fails, that's a bug to
+fix (wrong path, skill not materialized correctly), not a reason to draw your
+own text-only banner that merely resembles it. A drawn rectangle with
+"TECMO AUTOMATION" typed into it is not the same deliverable as the real
+logo, even if it looks superficially similar.
+
+**Text encoding**: `pdfkit`'s built-in `Helvetica` font only supports
+WinAnsi/Latin-1 encoding — it silently renders unsupported characters as
+garbage rather than erroring. Never use an arrow character (`→`, `➜`, `▶`,
+etc.) or any other character outside that range anywhere in PDF text
+(window ranges, notes, anywhere) — use the word "to" instead (e.g.
+"2026-09-27 06:00 SAST to 2026-09-29 06:00 SAST"), which is what every
+correct report so far has used. A plain hyphen `-` or true em-dash `—` is
+fine; a Unicode arrow is not.
+
 **01 Quick Stats** — six KPI cards, computed exactly as follows, never as raw
 row counts:
 - **Anomalies detected** — count of *grouped* findings with status
