@@ -245,11 +245,24 @@ RAM Couriers (2 accounts) and PMC Phalaborwa (1 account) as for ShipTech — a
 one- or two-row Portfolio Summary table is still a table; don't shrink the
 report's structure just because there's less to put in it:
 
-**Header** — client name and reporting window, e.g. "ShipTech (PTY) LTD —
-Portfolio | 18 accounts" and "Reporting window: 2026-09-27 06:00 to
-2026-09-29 06:00 SAST". Use a simple styled text header (bold client name,
-an accent rule) rather than an external logo image — no image asset ships
-with this skill, and inventing one is out of scope.
+**Header** — the real Tecmo Automation / FAMS banner, plus client name and
+reporting window. The banner image ships alongside this skill at
+`assets/fams_header_banner.jpg` (1246×232px) — embed it at the top of every
+page (not just the first), scaled to the page's content width with its
+aspect ratio preserved:
+
+```js
+const bannerPath = path.join(skillDir, 'assets', 'fams_header_banner.jpg');
+const bannerWidth = doc.page.width - doc.page.margins.left - doc.page.margins.right;
+const bannerHeight = bannerWidth * (232 / 1246); // preserve the real aspect ratio
+doc.image(bannerPath, doc.page.margins.left, doc.page.margins.top, { width: bannerWidth });
+// then move the cursor below the banner before drawing anything else, e.g.:
+let y = doc.page.margins.top + bannerHeight + 20;
+```
+
+Below the banner: client name and account count, then the reporting window,
+in the same style as before (bold client name, `#1F2A44` navy, an accent
+rule underneath).
 
 **01 Quick Stats** — six KPI cards, computed exactly as follows, never as raw
 row counts:
@@ -392,7 +405,12 @@ for headings/KPI numbers.
 elsewhere at Tecmo Automation for this same kind of report): orange `#E8720C`
 for section numbers/accents, navy `#1F2A44` for headings, dark `#2B2B2B` for
 table header fills, light `#F4F1EC` for KPI-card backgrounds and table
-zebra-striping.
+zebra-striping. **The orange specifically must appear on every section
+number** ("01", "02", "03", etc. — not the section title text itself, just
+the leading number, e.g. `doc.fillColor('#E8720C').text('01', ...)` then
+switch back to navy for the word "Quick Stats" that follows it) — a report
+using navy/gray throughout with no orange anywhere is missing this rule, not
+a valid interpretation of "reuse the palette."
 
 **Table columns**: compute each column's width from the actual content that
 will go in it (measure with `doc.widthOfString()` against a sample of the
