@@ -7,8 +7,8 @@ SUPPORT_EMAIL_ALLOWED_TO, so a bad prompt or a confused run can never email a cu
 Env (via Paperclip secrets):
   SUPPORT_EMAIL_MODE        fams_proxy | graph | smtp | dryrun   (default: dryrun)
   SUPPORT_EMAIL_ALLOWED_TO  comma list, e.g. schalk@fams.co.za
-  -- fams_proxy mode (FAMS's existing SendGrid proxy on api24 - the one already bound to a sender) --
-  SENDGRID_PROXY_BASE       default https://api24.fams.co.za/api/SendGrid
+  -- fams_proxy mode (FAMS's existing SendGrid proxy - the one already bound to a sender) --
+  SENDGRID_PROXY_BASE       required, e.g. https://<your-api-host>/api/SendGrid  (keep it out of git)
                             POST {base}/SendMessageEmail  {"email", "subject", "body"}  (one call per recipient)
   -- graph mode (Microsoft 365) --
   SUPPORT_EMAIL_FROM        sending mailbox, e.g. support-agent@fams.co.za
@@ -71,7 +71,9 @@ def send_fams_proxy(to, subject, html_body):
     """Same contract as shared/email.py send_email(): flat JSON, sender is fixed on the API side."""
     import requests
 
-    base = os.environ.get("SENDGRID_PROXY_BASE", "https://api24.fams.co.za/api/SendGrid").rstrip("/")
+    base = os.environ.get("SENDGRID_PROXY_BASE", "").rstrip("/")
+    if not base:
+        raise RuntimeError("SENDGRID_PROXY_BASE is not set")
     for addr in to:
         r = requests.post(f"{base}/SendMessageEmail",
                           json={"email": addr, "subject": subject, "body": html_body}, timeout=30)

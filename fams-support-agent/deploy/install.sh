@@ -1,34 +1,52 @@
 #!/usr/bin/env bash
-# Install the FAMS Support Agent files on the Paperclip VM.
-# Run from the unzipped fams-support-agent folder:   sudo bash deploy/install.sh
-# Re-running is safe: code/config are refreshed; data/ (index, ledger, outbox) is kept.
+# Install / update the FAMS Support Agent INSIDE the Paperclip container.
+#
+# Paperclip runs in Docker (container docker-server-1), and its agents run inside that
+# container as root. Everything is installed under /paperclip/fams-support-agent, which is
+# on Paperclip's existing data volume (on the VM: /data/docker/volumes/docker_paperclip-data/_data),
+# so it survives container restarts/rebuilds and NO compose change or restart is needed.
+#
+# Run on the VM, from the cloned repo:   sudo bash deploy/install.sh
+# Re-running is safe: code/config are refreshed; data/ (index, ledger, outbox) and an
+# edited config/column_map.json are kept.
 set -euo pipefail
 
-HOME_DIR=${SUPPORT_AGENT_HOME:-/data/fams-support-agent}
-RUN_AS=${PAPERCLIP_USER:-$(stat -c %U /data 2>/dev/null || echo "$SUDO_USER")}   # user that runs Paperclip
+C=${PAPERCLIP_CONTAINER:-docker-server-1}
+H=${SUPPORT_AGENT_HOME:-/paperclip/fams-support-agent}
 SRC=$(cd "$(dirname "$0")/.." && pwd)
 
-echo "Installing to $HOME_DIR (owner: $RUN_AS)"
-mkdir -p "$HOME_DIR"/{scripts,config,agent,skills,workspace,data/raw,data/outbox}
-cp -r "$SRC"/scripts/* "$HOME_DIR/scripts/"
-cp -r "$SRC"/agent/* "$HOME_DIR/agent/"
-cp -r "$SRC"/skills/* "$HOME_DIR/skills/"
-for f in mcp.json claude-settings.json; do cp "$SRC/config/$f" "$HOME_DIR/config/$f"; done
-# keep a column_map you've already edited
-[ -f "$HOME_DIR/config/column_map.json" ] || cp "$SRC/config/column_map.json" "$HOME_DIR/config/"
+docker inspect "$C" >/dev/null 2>&1 || { echo "Container $C not found (set PAPERCLIP_CONTAINER=...)"; exit 1; }
+echo "Copying files into $C:$H ..."
+docker exec "$C" rm -rf /tmp/fsa-src
+docker cp "$SRC" "$C":/tmp/fsa-src
 
-# Python deps (system python, no venv needed for two small libs)
-apt-get update -qq && apt-get install -y -qq python3-pip >/dev/null
-pip3 install --quiet --break-system-packages -r "$HOME_DIR/scripts/requirements.txt"
+docker exec -e H="$H" "$C" bash -euo pipefail -c '
+  mkdir -p "$H"/{scripts,config,agent,skills,workspace,bin,data/raw,data/outbox,.uv}
+  cp -r /tmp/fsa-src/scripts/. "$H/scripts/"
+  cp -r /tmp/fsa-src/agent/.   "$H/agent/"
+  cp -r /tmp/fsa-src/skills/.  "$H/skills/"
+  cp /tmp/fsa-src/config/mcp.json /tmp/fsa-src/config/claude-settings.json "$H/config/"
+  [ -f "$H/config/column_map.json" ] || cp /tmp/fsa-src/config/column_map.json "$H/config/"
+  chmod 700 "$H/data"
 
-# uv/uvx for the Freshdesk MCP server, installed for the Paperclip user
-if ! sudo -u "$RUN_AS" bash -lc 'command -v uvx' >/dev/null 2>&1; then
-  sudo -u "$RUN_AS" bash -lc 'curl -LsSf https://astral.sh/uv/install.sh | sh'
-fi
-sudo -u "$RUN_AS" bash -lc 'uvx --quiet freshdesk-mcp --help >/dev/null 2>&1 || true'   # pre-fetch
+  # uv (single static binary) into $H/bin - no change to the image
+  if [ ! -x "$H/bin/uv" ]; then
+    curl -LsSf https://astral.sh/uv/install.sh | env UV_INSTALL_DIR="$H/bin" UV_NO_MODIFY_PATH=1 sh
+  fi
+  export UV_CACHE_DIR="$H/.uv/cache" UV_TOOL_DIR="$H/.uv/tools" UV_PYTHON_INSTALL_DIR="$H/.uv/python"
 
-chown -R "$RUN_AS":"$RUN_AS" "$HOME_DIR"
-chmod 700 "$HOME_DIR/data"
-echo
-echo "Done. Next: README step 3 (secrets) and step 4 (first index build)."
-echo "uvx path for the Paperclip user: $(sudo -u "$RUN_AS" bash -lc 'command -v uvx' || echo 'NOT FOUND')"
+  # Python venv for the scripts, using the image'"'"'s own python3 (no pip needed)
+  [ -x "$H/.venv/bin/python" ] || "$H/bin/uv" venv --python /usr/bin/python3 "$H/.venv"
+  "$H/bin/uv" pip install --python "$H/.venv/bin/python" -q -r "$H/scripts/requirements.txt"
+
+  # Pre-fetch the Freshdesk MCP server so the first agent run is fast
+  # (stdin closed + timeout so the stdio server exits straight away)
+  timeout 120 "$H/bin/uvx" freshdesk-mcp </dev/null >/dev/null 2>&1 || true
+
+  rm -rf /tmp/fsa-src
+  echo
+  echo "Installed in $H"
+  "$H/.venv/bin/python" -c "import azure.storage.blob, requests; print(\"python deps: OK\")"
+  echo "uv: $("$H/bin/uv" --version)   uvx: $H/bin/uvx"
+'
+echo "Next: README step 2 (credentials) and step 3 (first index build)."

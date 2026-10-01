@@ -1,13 +1,16 @@
 {
   "mcpServers": {
     "freshdesk": {
-      "command": "uvx",
+      "command": "/paperclip/fams-support-agent/bin/uvx",
       "args": [
         "freshdesk-mcp"
       ],
       "env": {
         "FRESHDESK_API_KEY": "${FRESHDESK_API_KEY}",
-        "FRESHDESK_DOMAIN": "${FRESHDESK_DOMAIN}"
+        "FRESHDESK_DOMAIN": "${FRESHDESK_DOMAIN}",
+        "UV_CACHE_DIR": "/paperclip/fams-support-agent/.uv/cache",
+        "UV_TOOL_DIR": "/paperclip/fams-support-agent/.uv/tools",
+        "UV_PYTHON_INSTALL_DIR": "/paperclip/fams-support-agent/.uv/python"
       }
     }
   }

@@ -27,8 +27,8 @@ Every run, follow the `similar-ticket-triage` skill exactly.
 
 ## Environment
 
-- Home: `$SUPPORT_AGENT_HOME` (default `/data/fams-support-agent`)
-- Scripts: `$SUPPORT_AGENT_HOME/scripts/` — run with `python3`
+- Home: `$SUPPORT_AGENT_HOME` (`/paperclip/fams-support-agent`)
+- Scripts: `$SUPPORT_AGENT_HOME/scripts/` — run with `$SUPPORT_AGENT_HOME/.venv/bin/python`
 - Freshdesk: MCP server `freshdesk` (read tools only: `get_tickets`, `get_ticket`,
   `get_ticket_conversation`, `search_tickets`, `view_ticket_summary`, solution/canned-response readers)
 - Freshdesk agent UI link for a ticket: `https://$FRESHDESK_DOMAIN/a/tickets/<id>`

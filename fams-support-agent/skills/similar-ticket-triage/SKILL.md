@@ -1,11 +1,12 @@
 ---
 name: similar-ticket-triage
-description: Triage new Freshdesk tickets for the FAMS Support Agent — find similar resolved tickets in the historical ticket index, judge whether there is a strong, consistent known solution, and if so email a proposed answer to the internal reviewer. Use on every Support Agent run (webhook, schedule or manual).
+description: Triage new Freshdesk tickets for the FAMS Support Agent — find similar resolved tickets in the historical ticket index, judge whether there is a strong, consistent known solution, and if so email a proposed answer to the internal reviewer. Use on every Support Agent run (webhook or manual).
 ---
 
 # Similar-ticket triage
 
-`S=$SUPPORT_AGENT_HOME/scripts` in the commands below. Work in a scratch dir:
+In the commands below `S=$SUPPORT_AGENT_HOME/scripts` and `PY=$SUPPORT_AGENT_HOME/.venv/bin/python`
+(always use that Python — the system `python3` doesn't have the libraries). Work in a scratch dir:
 `W=$(mktemp -d)`.
 
 ## 1. Work out which tickets to look at
@@ -13,7 +14,7 @@ description: Triage new Freshdesk tickets for the FAMS Support Agent — find si
 1. If your Paperclip issue / trigger payload mentions a Freshdesk ticket id, put it first.
 2. Also sweep for anything missed: call `get_tickets` (page 1, per_page 30). Keep tickets
    whose `created_at` is **after `$SUPPORT_AGENT_START_AT`** and within the last 7 days.
-3. Drop ids the ledger already knows: `python3 $S/ledger.py unseen <id> <id> ...`
+3. Drop ids the ledger already knows: `$PY $S/ledger.py unseen <id> <id> ...`
 4. Skip (and `mark … skipped --note "<reason>"`) tickets that are:
    - from an internal requester (`@fams.co.za`, `@tecmo.co.za`) — tickets only carry a
      `requester_id`, so look the email up with `get_contact <requester_id>`;
@@ -25,7 +26,7 @@ description: Triage new Freshdesk tickets for the FAMS Support Agent — find si
 ## 2. For each ticket
 
 ```bash
-python3 $S/ledger.py claim <id>        # exit code 3 = someone else has it -> skip
+$PY $S/ledger.py claim <id>        # exit code 3 = someone else has it -> skip
 ```
 
 **a. Read it.** `get_ticket <id>` and `get_ticket_conversation <id>`. Save the ticket JSON
@@ -37,7 +38,7 @@ problem is in the description. If a human agent has already replied, `mark … s
 
 **b. Search history.**
 ```bash
-python3 $S/search_similar.py --ticket-json $W/<id>.json --top 8
+$PY $S/search_similar.py --ticket-json $W/<id>.json --top 8
 ```
 `same_customer_as_new: true` marks history from the same company/requester — it does not
 count towards "other users". If results look thin, search again with your own rephrasing,
@@ -60,16 +61,16 @@ need a human to look at the data, even if the topic is common.
 
 **d. If LOW/NONE:**
 ```bash
-python3 $S/ledger.py mark <id> no_match --confidence low --matched "<ids looked at>" --note "<why, 1 line>"
+$PY $S/ledger.py mark <id> no_match --confidence low --matched "<ids looked at>" --note "<why, 1 line>"
 ```
 
 **e. If HIGH or MEDIUM — draft and send.** Write `$W/<id>.html` using the template below,
 then:
 ```bash
-python3 $S/send_email.py --to "$SUPPORT_REVIEWER_EMAIL" \
+$PY $S/send_email.py --to "$SUPPORT_REVIEWER_EMAIL" \
   --subject "[Support Agent] Ticket #<id> – <ticket subject> – <HIGH|MEDIUM> confidence" \
   --body-file $W/<id>.html --ticket-id <id>
-python3 $S/ledger.py mark <id> sent --confidence <high|medium> --matched "<id1,id2,...>" --note "<fix in 1 line>"
+$PY $S/ledger.py mark <id> sent --confidence <high|medium> --matched "<id1,id2,...>" --note "<fix in 1 line>"
 ```
 If sending fails: `mark <id> error --note "<error>"` and report it in your issue comment.
 Do not retry more than once in the same run.
@@ -116,5 +117,5 @@ Then mark the issue done.
 ## Housekeeping
 
 - If `search_similar.py` errors with "no such table", the index is missing:
-  run `python3 $S/sync_blob.py` (downloads the exports and rebuilds), then retry.
-- Stale claim from a crashed run (>1 hour old, no outcome): `python3 $S/ledger.py release <id>`.
+  run `$PY $S/sync_blob.py` (downloads the exports and rebuilds), then retry.
+- Stale claim from a crashed run (>1 hour old, no outcome): `$PY $S/ledger.py release <id>`.

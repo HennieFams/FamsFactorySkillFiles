@@ -9,12 +9,11 @@ never contacted.
 Freshdesk "ticket created" automation ──POST + Bearer──▶ Caddy :443 (only the /fire path is public)
                                                             │
                                          Paperclip routine "Triage new Freshdesk tickets"
-                                         (+ hourly safety-net schedule, Mon–Fri 07–18)
                                                             │ wakes
                                                   FAMS Support Agent (claude_local)
      ┌───────────────────────────────┬──────────────────────┼─────────────────────────────┐
  Freshdesk MCP (read-only)     ledger.py               search_similar.py              send_email.py
- get_tickets / get_ticket /    claim → mark;           SQLite FTS5 index of           api24 SendGrid proxy; refuses any
+ get_tickets / get_ticket /    claim → mark;           SQLite FTS5 index of           SendGrid proxy; refuses any    
  get_ticket_conversation       one email per ticket    resolved tickets + replies     address not allow-listed
                                                             ▲
                                        nightly routine: sync_blob.py → build_index.py
@@ -37,12 +36,12 @@ Anything weaker, or anything that needs this customer's own data checked → do 
 | `scripts/build_index.py` | Exports → SQLite FTS5 index of resolved tickets + agents' public replies |
 | `scripts/search_similar.py` | Ranked similar tickets + clusters of agreeing resolutions (JSON) |
 | `scripts/ledger.py` | Claim/mark processed tickets; stops duplicates |
-| `scripts/send_email.py` | Sends via the api24 SendGrid proxy (or dryrun) with a recipient allow-list |
+| `scripts/send_email.py` | Sends via the FAMS SendGrid proxy (or dryrun) with a recipient allow-list |
 | `config/column_map.json` | Export format settings (Freshdesk JSON default; CSV optional) |
 | `config/mcp.json` | Freshdesk MCP server definition (`uvx freshdesk-mcp`) |
 | `config/claude-settings.json` | Deny rules for every Freshdesk write tool, curl, wget, WebFetch |
 | `config/paperclip-agent-adapter.json` | Adapter config to copy into Paperclip |
-| `deploy/install.sh` | Copies everything to `/data/fams-support-agent`, installs deps + uv |
+| `deploy/install.sh` | Installs into the Paperclip container at `/paperclip/fams-support-agent` (venv + uv), no restart |
 | `deploy/paperclip-routines.json` | The two routines and their triggers |
 | `deploy/Caddyfile` | Public HTTPS for the webhook path only |
 | `deploy/freshdesk-automation-rule.md` | Exact Freshdesk rule settings |
@@ -52,15 +51,39 @@ Anything weaker, or anything that needs this customer's own data checked → do 
 
 ## 1. Install on the VM
 
+Paperclip runs in Docker (`docker-server-1`, compose folder `/data/paperclip/docker`) and its
+agents run **inside that container as root**. So the agent's files go on Paperclip's existing
+data volume, which the container sees as `/paperclip`:
+
+| Inside the container | On the VM (same files) |
+|---|---|
+| `/paperclip/fams-support-agent` | `/data/docker/volumes/docker_paperclip-data/_data/fams-support-agent` |
+
+That volume is already on the `/data` disk and survives container restarts and rebuilds, so
+**no compose change and no Paperclip restart** are needed. The installer adds a private uv
+binary and a Python virtualenv in that folder; the Paperclip image itself is not modified.
+
 ```bash
-scp fams-support-agent.zip <you>@famsfactory-vm:~
-ssh <you>@famsfactory-vm
-unzip fams-support-agent.zip && cd fams-support-agent
-sudo PAPERCLIP_USER=<user that runs paperclip> bash deploy/install.sh
+git clone https://github.com/<org>/fams-support-agent.git ~/fams-support-agent
+cd ~/fams-support-agent
+sudo bash deploy/install.sh
 ```
-Everything lands on the data disk at `/data/fams-support-agent`. Note the `uvx` path the
-script prints — if it isn't on the Paperclip service's PATH, put the full path in
-`config/mcp.json` (`"command": "/home/<user>/.local/bin/uvx"`).
+Expected ending: `python deps: OK` and the uv version. To update later:
+`cd ~/fams-support-agent && git pull && sudo bash deploy/install.sh` (keeps `data/` and your
+`column_map.json`).
+
+Every other command in this README that starts with `$PY` runs **inside the container**. Open
+a shell there first:
+```bash
+sudo docker exec -it docker-server-1 bash
+export SUPPORT_AGENT_HOME=/paperclip/fams-support-agent
+PY=$SUPPORT_AGENT_HOME/.venv/bin/python; S=$SUPPORT_AGENT_HOME/scripts
+```
+
+**Repo hygiene:** the repo holds code and instructions only. Secrets and environment-specific
+URLs live in Paperclip secrets; runtime data (index, ledger, outbox) stays in
+`/paperclip/fams-support-agent/data` and is git-ignored. Never commit real ticket exports —
+they contain customer names, phone numbers and sometimes passwords.
 
 ## 2. Credentials you need
 
@@ -69,14 +92,14 @@ script prints — if it isn't on the Paperclip service's PATH, put the full path
 | `FRESHDESK_API_KEY` | Freshdesk → profile picture → Profile settings → *Your API Key*. The key has that agent's full rights — the agent is kept read-only by the deny rules, not by the key. |
 | `AZURE_BLOB_CONTAINER_SAS_URL` | Azure Portal → Storage account → Containers → your export container → *Shared access tokens*. Permissions **Read + List** only, expiry 12 months, HTTPS only. Copy the *Blob SAS URL*. |
 
-**Email** goes through FAMS's existing SendGrid proxy
-(`https://api24.fams.co.za/api/SendGrid/SendMessageEmail`, sender already bound on the API
-side), the same contract as `shared/email.py`: `{"email", "subject", "body"}`. No mail
+**Email** goes through FAMS's existing SendGrid proxy (`<SENDGRID_PROXY_BASE>/SendMessageEmail`,
+sender already bound on the API side). Store the base URL as the Paperclip secret
+`SENDGRID_PROXY_BASE` — never commit it, because that endpoint is unauthenticated, the same contract as `shared/email.py`: `{"email", "subject", "body"}`. No mail
 credentials are needed on the VM. `send_email.py` still refuses every address except
 `SUPPORT_EMAIL_ALLOWED_TO`, and checks the HTTP status before logging "sent".
-Check once from the VM that api24 is reachable:
+Check once from the VM that the proxy is reachable:
 ```bash
-curl -s -o /dev/null -w "%{http_code}\n" -X POST https://api24.fams.co.za/api/SendGrid/SendMessageEmail \
+curl -s -o /dev/null -w "%{http_code}\n" -X POST "$SENDGRID_PROXY_BASE/SendMessageEmail" \
   -H "Content-Type: application/json" -d '{"email":"schalk@fams.co.za","subject":"VM test","body":"<p>test</p>"}'
 ```
 (Graph and SMTP modes are still in the script if you ever need them — see its header.)
@@ -103,19 +126,19 @@ there too if you ever export CSV instead — set `"format": "csv"`).
    (the path from the old Azure Function). Blob names normally **don't** include the container
    name, so check the real paths first and drop the leading `ticketingfolder/` if needed:
    `az storage blob list --container-name ticketingfolder --account-name <acct> --num-results 5 --query "[].name" -o tsv`
-2. Build it once by hand as the Paperclip user:
+2. Build it once by hand, in the container shell from step 1:
 ```bash
-export SUPPORT_AGENT_HOME=/data/fams-support-agent
 export AZURE_BLOB_CONTAINER_SAS_URL='https://...'      # same value as the secret
-python3 $SUPPORT_AGENT_HOME/scripts/sync_blob.py
+export AZURE_BLOB_PREFIX='ticketingfolder/freshdesk_conversations/tickets_tecmo/'   # adjust after the check above
+$PY $S/sync_blob.py
 ```
    It prints e.g. `{"indexed_tickets": 640, "with_agent_reply": 610, "distinct_requesters": 85}`.
 3. Sanity-check with a real past problem (try both languages):
 ```bash
-python3 $SUPPORT_AGENT_HOME/scripts/search_similar.py --description "bowser transaksies trek nie deur op FAMS nie"
-python3 $SUPPORT_AGENT_HOME/scripts/search_similar.py --description "no data reflecting on FAMS portal"
+$PY $S/search_similar.py --description "bowser transaksies trek nie deur op FAMS nie"
+$PY $S/search_similar.py --description "no data reflecting on FAMS portal"
 ```
-4. Offline test of the whole script chain (no Azure/Freshdesk needed): `bash tests/smoke_test.sh`
+4. Offline test of the whole script chain (no Azure/Freshdesk needed), on the VM from the repo: `bash tests/smoke_test.sh`
 
 **What to expect from the hit rate.** In the November sample, most closed tickets were
 solved by a question, a site visit, a quote or work "on our side" — only a few replies state a
@@ -149,9 +172,11 @@ replies.
 In Paperclip → Routines create the two routines in `deploy/paperclip-routines.json`
 (UI is simplest; API: `POST /api/routines/{routineId}/triggers` for each trigger).
 
-- **Triage new Freshdesk tickets** — webhook trigger (`signingMode: bearer`) + business-hours
-  hourly schedule. When you save the webhook trigger Paperclip shows `webhookUrl` and
-  `webhookSecret` **once** — copy both now.
+- **Triage new Freshdesk tickets** — webhook trigger only (`signingMode: bearer`), no schedule.
+  When you save the webhook trigger Paperclip shows `webhookUrl` and `webhookSecret` **once** —
+  copy both now. Each run also sweeps Freshdesk's latest tickets against the ledger, so if a
+  webhook call is ever lost, that ticket is picked up on the next ticket's run (or click
+  *Run now* on the routine to sweep manually).
 - **Refresh historical ticket index** — nightly 02:15.
 
 `concurrencyPolicy: coalesce_if_active` is fine: if three tickets arrive during one run they
@@ -189,7 +214,8 @@ Follow `deploy/freshdesk-automation-rule.md`.
 ## 8. Go-live sequence
 
 1. **Dry run (1–2 weeks).** `SUPPORT_EMAIL_MODE=dryrun`. Every email the agent *would* have
-   sent is written to `/data/fams-support-agent/data/outbox/`. Review them with Schalk:
+   sent is written to `/paperclip/fams-support-agent/data/outbox/` (on the VM:
+   `sudo ls /data/docker/volumes/docker_paperclip-data/_data/fams-support-agent/data/outbox`). Review them with Schalk:
    right tickets? right confidence? any false positives?
 2. Tune if needed: thresholds/wording in `SKILL.md`; search weights in `search_similar.py`
    (`bm25(..., 4.0 subject, 2.0 description, 0.5 resolution, 1.5 tags)`).
@@ -201,10 +227,10 @@ Follow `deploy/freshdesk-automation-rule.md`.
 ## Day-to-day
 
 ```bash
-S=/data/fams-support-agent/scripts
-python3 $S/ledger.py recent 20          # what happened to the latest tickets
-python3 $S/ledger.py release <id>       # let a crashed/error ticket be retried
-ls -lt /data/fams-support-agent/data/outbox | head
+# inside the container (step 1 shell)
+$PY $S/ledger.py recent 20          # what happened to the latest tickets
+$PY $S/ledger.py release <id>       # let a crashed/error ticket be retried
+ls -lt $SUPPORT_AGENT_HOME/data/outbox | head
 ```
 Run history and the agent's per-run comments are on the routine's Runs page in Paperclip.
 

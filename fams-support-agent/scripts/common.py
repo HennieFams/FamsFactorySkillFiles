@@ -5,7 +5,7 @@ import os
 import re
 from pathlib import Path
 
-HOME = Path(os.environ.get("SUPPORT_AGENT_HOME", "/data/fams-support-agent"))
+HOME = Path(os.environ.get("SUPPORT_AGENT_HOME", "/paperclip/fams-support-agent"))
 RAW_DIR = HOME / "data" / "raw"          # CSVs mirrored from Azure Blob
 INDEX_DB = HOME / "data" / "history.db"  # SQLite + FTS5 index of past tickets
 LEDGER_DB = HOME / "data" / "ledger.db"  # which new tickets were already handled

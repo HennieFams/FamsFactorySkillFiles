@@ -36,5 +36,5 @@ webhook log.
 Notes
 - The description is deliberately not sent in the payload; the agent reads the full ticket
   through the Freshdesk MCP, so nothing sensitive sits in Paperclip trigger logs.
-- If the webhook ever fails, the hourly safety-net schedule picks the ticket up anyway
-  (the ledger stops it being handled twice).
+- If a webhook call is ever lost, the next ticket's run sweeps recent tickets and picks it up
+  (the ledger stops anything being handled twice). You can also click *Run now* on the routine.
