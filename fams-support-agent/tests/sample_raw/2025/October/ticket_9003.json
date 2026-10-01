@@ -1,0 +1,25 @@
+{
+ "ticket_id": "9003",
+ "status": "success",
+ "original": {
+  "id": "9003",
+  "subject": "Plaas C",
+  "description_text": "Twee bowser transaksies het nie deur getrek nie.",
+  "status": "5",
+  "source": "1",
+  "type": "Western Cape",
+  "requester_id": "333",
+  "company_id": "None",
+  "created_at": "2025-10-03T08:00:00Z",
+  "updated_at": "2025-10-03T12:00:00Z",
+  "tags": []
+ },
+ "conversations": [
+  {
+   "body_text": "Hi Anna, Hoop dit gaan goed. Die bowser unit was af voordat die data gestuur kon word. Onthou, OWW en Limesale bowsers moet op battery gekoppel bly sodat die unit aan bly en die data na die cloud kan stuur. Sit asb die unit aan en laat dit 10 minute aan bly, dan sal die transaksies deur trek.",
+   "incoming": "False",
+   "private": "False",
+   "created_at": "2025-10-03T09:00:00Z"
+  }
+ ]
+}

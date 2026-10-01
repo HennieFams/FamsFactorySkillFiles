@@ -1,0 +1,43 @@
+{
+  "_comment": "Tells the indexer how to read the historical exports. Default source is the per-ticket Freshdesk JSON files (ticket_<id>.json with 'original' + 'conversations'). A CSV layout is kept as a fallback.",
+
+  "format": "freshdesk_json",
+
+  "freshdesk_json": {
+    "file_glob": "**/ticket_*.json",
+    "resolved_status_values": ["4", "5"],
+    "exclude_sources": ["10"],
+    "_exclude_sources_comment": "Freshdesk source 10 = outbound email started by an agent (e.g. sending login details) - not a customer problem, and may contain passwords."
+  },
+
+  "csv": {
+    "tickets": {
+      "file_glob": "**/*ticket*.csv",
+      "columns": {
+        "id": "Ticket ID",
+        "subject": "Subject",
+        "description": "Description",
+        "status": "Status",
+        "source": "Source",
+        "created": "Created time",
+        "resolved": "Resolved time",
+        "requester_id": "Requester Email",
+        "company_id": "Company",
+        "tags": "Tags",
+        "type": "Type",
+        "resolution": null
+      },
+      "resolved_status_values": ["Resolved", "Closed", "4", "5"]
+    },
+    "conversations": {
+      "file_glob": "**/*conversation*.csv",
+      "columns": {
+        "ticket_id": "ticket_id",
+        "body": "body_text",
+        "incoming": "incoming",
+        "private": "private",
+        "created": "created_at"
+      }
+    }
+  }
+}

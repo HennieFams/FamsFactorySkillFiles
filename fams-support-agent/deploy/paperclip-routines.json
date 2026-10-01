@@ -1,0 +1,52 @@
+{
+  "_comment": "Two routines for the FAMS Support Agent. Create them in the Paperclip UI (Routines > New) or via the API calls in README section 6. Replace <SUPPORT_AGENT_ID>.",
+
+  "triage_routine": {
+    "create": {
+      "title": "Triage new Freshdesk tickets",
+      "description": "A new Freshdesk ticket was created (or this is the scheduled safety-net sweep). Follow the similar-ticket-triage skill: find new tickets, compare with historical resolved tickets, and email a proposed answer to the reviewer only when there is a strong known solution. The webhook payload (if any) contains the Freshdesk ticket id.",
+      "assigneeAgentId": "<SUPPORT_AGENT_ID>",
+      "priority": "medium",
+      "status": "active",
+      "concurrencyPolicy": "coalesce_if_active",
+      "catchUpPolicy": "skip_missed"
+    },
+    "triggers": [
+      {
+        "kind": "webhook",
+        "label": "Freshdesk - ticket created",
+        "enabled": true,
+        "signingMode": "bearer",
+        "replayWindowSec": 300
+      },
+      {
+        "kind": "schedule",
+        "label": "Safety-net sweep (business hours)",
+        "enabled": true,
+        "cronExpression": "0 7-18 * * 1-5",
+        "timezone": "Africa/Johannesburg"
+      }
+    ]
+  },
+
+  "history_refresh_routine": {
+    "create": {
+      "title": "Refresh historical ticket index",
+      "description": "Run `python3 $SUPPORT_AGENT_HOME/scripts/sync_blob.py` to download any new or changed ticket exports from Azure Blob Storage and rebuild the search index. Comment the JSON summary it prints, then close the issue. Do nothing else.",
+      "assigneeAgentId": "<SUPPORT_AGENT_ID>",
+      "priority": "low",
+      "status": "active",
+      "concurrencyPolicy": "coalesce_if_active",
+      "catchUpPolicy": "skip_missed"
+    },
+    "triggers": [
+      {
+        "kind": "schedule",
+        "label": "Nightly 02:15",
+        "enabled": true,
+        "cronExpression": "15 2 * * *",
+        "timezone": "Africa/Johannesburg"
+      }
+    ]
+  }
+}

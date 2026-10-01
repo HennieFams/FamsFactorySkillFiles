@@ -1,0 +1,28 @@
+# Public HTTPS entry point for the Freshdesk webhook ONLY.
+# Everything except the Paperclip routine-trigger "fire" path returns 404, so the
+# Paperclip UI/API stays private (reach it the way you do today: SSH tunnel / VPN / Tailscale).
+#
+# Set WEBHOOK_HOST to the VM's DNS name, e.g.
+#   famsfactory-vm.southafricanorth.cloudapp.azure.com
+# (Azure Portal > VM > Public IP > Configuration > DNS name label)
+# Caddy gets and renews the Let's Encrypt certificate automatically.
+# If Paperclip runs in Docker without host networking, change 127.0.0.1:3100 to its address.
+
+{$WEBHOOK_HOST} {
+	@hook {
+		method POST
+		path_regexp ^/api/routine-triggers/public/[A-Za-z0-9_-]+/fire$
+	}
+	handle @hook {
+		request_body {
+			max_size 64KB
+		}
+		reverse_proxy 127.0.0.1:3100
+	}
+	handle {
+		respond 404
+	}
+	log {
+		output file /var/log/caddy/webhook.log
+	}
+}
