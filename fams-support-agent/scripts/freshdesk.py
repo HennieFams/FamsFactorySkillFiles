@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Read-only Freshdesk command line for the FAMS Support Agent.
 
-Same five read-only calls as freshdesk_readonly_mcp.py (GET requests only - nothing here can
+Same five read-only calls as the MCP server (freshdesk_api.py) (GET requests only - nothing here can
 reply to, note on, edit or delete a ticket), but usable from Bash. This works no matter how
 Paperclip launches Claude Code, so it doesn't depend on MCP servers being loaded.
 
@@ -15,7 +15,7 @@ import argparse
 import json
 import sys
 
-import freshdesk_readonly_mcp as fd
+import freshdesk_api as fd
 
 
 def main():
