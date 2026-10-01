@@ -23,7 +23,7 @@
   "history_refresh_routine": {
     "create": {
       "title": "Refresh historical ticket index",
-      "description": "Run `$SUPPORT_AGENT_HOME/.venv/bin/python $SUPPORT_AGENT_HOME/scripts/sync_blob.py` to download any new or changed ticket exports from Azure Blob Storage and rebuild the search index. Comment the JSON summary it prints, then close the issue. Do nothing else.",
+      "description": "Run `/paperclip/fams-support-agent/.venv/bin/python /paperclip/fams-support-agent/scripts/sync_blob.py` to download any new or changed ticket exports from Azure Blob Storage and rebuild the search index. Comment the JSON summary it prints, then close the issue. Do nothing else.",
       "assigneeAgentId": "<SUPPORT_AGENT_ID>",
       "priority": "low",
       "status": "active",

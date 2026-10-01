@@ -25,9 +25,14 @@ docker exec -e H="$H" "$C" bash -euo pipefail -c '
   cp -r /tmp/fsa-src/scripts/. "$H/scripts/"
   cp -r /tmp/fsa-src/agent/.   "$H/agent/"
   cp -r /tmp/fsa-src/skills/.  "$H/skills/"
-  cp /tmp/fsa-src/config/mcp.json /tmp/fsa-src/config/claude-settings.json "$H/config/"
+  # agent working folder: dot-files are stored without the dot in git (easier to upload)
+  mkdir -p "$H/workspace/.claude"
+  cp /tmp/fsa-src/deploy/workspace/mcp.json             "$H/workspace/.mcp.json"
+  cp /tmp/fsa-src/deploy/workspace/claude-settings.json "$H/workspace/.claude/settings.json"
+  cp /tmp/fsa-src/config/agent.env.example "$H/config/"
   [ -f "$H/config/column_map.json" ] || cp /tmp/fsa-src/config/column_map.json "$H/config/"
-  chmod 700 "$H/data"
+  [ -f "$H/config/agent.env" ] || cp /tmp/fsa-src/config/agent.env.example "$H/config/agent.env"
+  chmod 700 "$H/data"; chmod 600 "$H/config/agent.env"
 
   # uv (single static binary) into $H/bin - no change to the image
   if [ ! -x "$H/bin/uv" ]; then
@@ -39,14 +44,14 @@ docker exec -e H="$H" "$C" bash -euo pipefail -c '
   [ -x "$H/.venv/bin/python" ] || "$H/bin/uv" venv --python /usr/bin/python3 "$H/.venv"
   "$H/bin/uv" pip install --python "$H/.venv/bin/python" -q -r "$H/scripts/requirements.txt"
 
-  # Pre-fetch the Freshdesk MCP server so the first agent run is fast
-  # (stdin closed + timeout so the stdio server exits straight away)
-  timeout 120 "$H/bin/uvx" freshdesk-mcp </dev/null >/dev/null 2>&1 || true
 
   rm -rf /tmp/fsa-src
+  # Same owner as the rest of Paperclip'"'"'s data, so agents can write here whichever user they run as
+  OWNER=$(stat -c %U:%G /paperclip)
+  chown -R "$OWNER" "$H"
   echo
   echo "Installed in $H"
-  "$H/.venv/bin/python" -c "import azure.storage.blob, requests; print(\"python deps: OK\")"
+  "$H/.venv/bin/python" -c "import azure.storage.blob, requests, mcp; print(\"python deps: OK\")"
   echo "uv: $("$H/bin/uv" --version)   uvx: $H/bin/uvx"
 '
-echo "Next: README step 2 (credentials) and step 3 (first index build)."
+echo "Next: sudo bash deploy/set_config.sh   (secrets + settings), then README step 4."

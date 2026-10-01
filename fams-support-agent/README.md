@@ -13,7 +13,7 @@ Freshdesk "ticket created" automation ──POST + Bearer──▶ Caddy :443 (o
                                                   FAMS Support Agent (claude_local)
      ┌───────────────────────────────┬──────────────────────┼─────────────────────────────┐
  Freshdesk MCP (read-only)     ledger.py               search_similar.py              send_email.py
- get_tickets / get_ticket /    claim → mark;           SQLite FTS5 index of           SendGrid proxy; refuses any    
+ list_recent / get_ticket /    claim → mark;           SQLite FTS5 index of           SendGrid proxy; refuses any    
  get_ticket_conversation       one email per ticket    resolved tickets + replies     address not allow-listed
                                                             ▲
                                        nightly routine: sync_blob.py → build_index.py
@@ -38,9 +38,10 @@ Anything weaker, or anything that needs this customer's own data checked → do 
 | `scripts/ledger.py` | Claim/mark processed tickets; stops duplicates |
 | `scripts/send_email.py` | Sends via the FAMS SendGrid proxy (or dryrun) with a recipient allow-list |
 | `config/column_map.json` | Export format settings (Freshdesk JSON default; CSV optional) |
-| `config/mcp.json` | Freshdesk MCP server definition (`uvx freshdesk-mcp`) |
-| `config/claude-settings.json` | Deny rules for every Freshdesk write tool, curl, wget, WebFetch |
-| `config/paperclip-agent-adapter.json` | Adapter config to copy into Paperclip |
+| `config/agent.env.example` | Template for the secrets/settings file (real one lives only in the container) |
+| `scripts/freshdesk_readonly_mcp.py` | Read-only Freshdesk MCP server (GET calls only) |
+| `deploy/workspace/` | Installed as the agent's `.mcp.json` and `.claude/settings.json` |
+| `deploy/set_config.sh` | Writes `agent.env` inside the container (hidden prompts) |
 | `deploy/install.sh` | Installs into the Paperclip container at `/paperclip/fams-support-agent` (venv + uv), no restart |
 | `deploy/paperclip-routines.json` | The two routines and their triggers |
 | `deploy/Caddyfile` | Public HTTPS for the webhook path only |
@@ -81,28 +82,39 @@ PY=$SUPPORT_AGENT_HOME/.venv/bin/python; S=$SUPPORT_AGENT_HOME/scripts
 ```
 
 **Repo hygiene:** the repo holds code and instructions only. Secrets and environment-specific
-URLs live in Paperclip secrets; runtime data (index, ledger, outbox) stays in
+URLs live only in `config/agent.env` inside the container; runtime data (index, ledger, outbox) stays in
 `/paperclip/fams-support-agent/data` and is git-ignored. Never commit real ticket exports —
 they contain customer names, phone numbers and sometimes passwords.
 
-## 2. Credentials you need
+## 2. Secrets and settings (`config/agent.env`)
 
-| Secret (Paperclip → Company → Secrets) | Where to get it |
-|---|---|
-| `FRESHDESK_API_KEY` | Freshdesk → profile picture → Profile settings → *Your API Key*. The key has that agent's full rights — the agent is kept read-only by the deny rules, not by the key. |
-| `AZURE_BLOB_CONTAINER_SAS_URL` | Azure Portal → Storage account → Containers → your export container → *Shared access tokens*. Permissions **Read + List** only, expiry 12 months, HTTPS only. Copy the *Blob SAS URL*. |
+Paperclip's agent form has no fields for environment variables or extra CLI arguments, so
+the agent's secrets and settings live in one file inside the container,
+`/paperclip/fams-support-agent/config/agent.env` (chmod 600, never in git). Fill it in from
+the VM; what you type is hidden:
 
-**Email** goes through FAMS's existing SendGrid proxy (`<SENDGRID_PROXY_BASE>/SendMessageEmail`,
-sender already bound on the API side). Store the base URL as the Paperclip secret
-`SENDGRID_PROXY_BASE` — never commit it, because that endpoint is unauthenticated, the same contract as `shared/email.py`: `{"email", "subject", "body"}`. No mail
-credentials are needed on the VM. `send_email.py` still refuses every address except
-`SUPPORT_EMAIL_ALLOWED_TO`, and checks the HTTP status before logging "sent".
-Check once from the VM that the proxy is reachable:
 ```bash
-curl -s -o /dev/null -w "%{http_code}\n" -X POST "$SENDGRID_PROXY_BASE/SendMessageEmail" \
-  -H "Content-Type: application/json" -d '{"email":"schalk@fams.co.za","subject":"VM test","body":"<p>test</p>"}'
+sudo bash deploy/set_config.sh
 ```
-(Graph and SMTP modes are still in the script if you ever need them — see its header.)
+
+| Asked for | Where to get it |
+|---|---|
+| Freshdesk API key | Freshdesk → profile picture → Profile settings → *Your API Key* |
+| Blob SAS URL | Storage account → Containers → `ticketingfolder` → *Shared access tokens*, **Read + List**, HTTPS only, 12 months → *Blob SAS URL* |
+| SendGrid proxy base URL | the api24 SendGrid base, `https://…/api/SendGrid` (unauthenticated — never commit it) |
+| Email mode | `dryrun` for now |
+| Start time | now, in UTC — older tickets are ignored |
+
+It ends by printing the settings and whether each secret is present. Run it again any time
+to change one value (blank = keep).
+
+**How the guard rails work without CLI flags:**
+- Freshdesk access is a small **read-only MCP server** in this pack
+  (`scripts/freshdesk_readonly_mcp.py`). It contains only GET calls, so replying, noting or
+  editing in Freshdesk is impossible, whatever the agent tries.
+- The agent's working folder (`/paperclip/fams-support-agent/workspace`) holds `.mcp.json`
+  (loads only that server) and `.claude/settings.json` (denies curl, wget and web fetches).
+- `send_email.py` sends only to `SUPPORT_EMAIL_ALLOWED_TO` and checks the HTTP status.
 
 ## 3. History format + first index build
 
@@ -122,10 +134,8 @@ The history is the monthly per-ticket JSON export you already upload to Blob
 Settings live in `config/column_map.json` (globs, statuses, excluded sources; a CSV layout is
 there too if you ever export CSV instead — set `"format": "csv"`).
 
-1. The adapter config uses `AZURE_BLOB_PREFIX=ticketingfolder/freshdesk_conversations/tickets_tecmo/`
-   (the path from the old Azure Function). Blob names normally **don't** include the container
-   name, so check the real paths first and drop the leading `ticketingfolder/` if needed:
-   `az storage blob list --container-name ticketingfolder --account-name <acct> --num-results 5 --query "[].name" -o tsv`
+1. The prefix is `ticketingfolder/freshdesk_conversations/tickets_tecmo/` (confirmed: blob
+   names do start with `ticketingfolder/`). It's already the default in `agent.env`.
 2. Build it once by hand, in the container shell from step 1:
 ```bash
 export AZURE_BLOB_CONTAINER_SAS_URL='https://...'      # same value as the secret
@@ -149,23 +159,32 @@ replies.
 
 ## 4. Create the agent in Paperclip
 
-1. Agents → **FAMS Support Agent** → adapter **Claude Code (claude_local)**, same Anthropic
-   subscription as the CEO agent.
-2. Copy the fields from `config/paperclip-agent-adapter.json`: `cwd`, instructions file,
-   model, `extraArgs`, `env`. For the env entries marked `secretRef`, use the UI's secret
-   picker to bind the secret (the JSON just shows which ones are secrets).
-   - `extraArgs` loads **only** the Freshdesk MCP (`--strict-mcp-config`, so Hermes / CEO MCP
-     servers never reach this agent), applies the deny settings, and passes
-     `--disallowedTools` for every Freshdesk write tool.
-   - `SUPPORT_AGENT_START_AT`: set to the moment you go live (UTC). Tickets older than this
-     are ignored, so the first run doesn't email Schalk about the last 30 days.
-   - Leave `SUPPORT_EMAIL_MODE=dryrun` for now.
-3. Upload the skill: Skills → add `skills/similar-ticket-triage/SKILL.md` to this agent.
-4. **Verify the tool lockdown** — run the agent manually with this task:
-   *"List every tool you have whose name starts with mcp__freshdesk, then try to call
-   mcp__freshdesk__create_ticket_note on ticket 1 with body 'test'. Report what happened."*
-   Expected: only read tools listed; the note call is blocked. If the tool names differ
-   (the MCP package renamed them), update both `claude-settings.json` and `extraArgs`.
+Agents → **New Agent**:
+
+| Field | Value |
+|---|---|
+| Name | FAMS Support Agent |
+| Role | general |
+| Reports to | your CEO agent |
+| Adapter | **Claude Code**, same sign-in/subscription as the CEO agent |
+| Model | same as the CEO agent (a Sonnet model is plenty) |
+| Working directory (cwd) | `/paperclip/fams-support-agent/workspace` |
+| Heartbeat | **off** — it only runs when a routine wakes it |
+
+**Instructions tab:** replace the default `AGENTS.md` with the contents of `agent/AGENTS.md`
+from this repo (or, if offered, point an external instructions bundle at
+`/paperclip/fams-support-agent/agent`). The instructions tell the agent to read the skill file
+`/paperclip/fams-support-agent/skills/similar-ticket-triage/SKILL.md` itself, so you don't
+need to add it to Paperclip's skill library. (If you'd like it there too, add it from that file.)
+
+**Test run (no routine needed yet).** Create an issue assigned to the agent:
+> *Lockdown check: run `/paperclip/fams-support-agent/.venv/bin/python /paperclip/fams-support-agent/scripts/settings.py`,
+> list the tools you have from the `freshdesk` MCP server, call `list_recent_tickets` with
+> per_page 3 and report the ticket ids and subjects. Do not process any tickets and do not send email.*
+
+Expected comment: settings with all three secrets `true`, exactly five Freshdesk tools
+(`list_recent_tickets`, `get_ticket`, `get_ticket_conversation`, `get_contact`,
+`search_tickets`), and three real recent tickets.
 
 ## 5. Routines
 
@@ -219,7 +238,7 @@ Follow `deploy/freshdesk-automation-rule.md`.
    right tickets? right confidence? any false positives?
 2. Tune if needed: thresholds/wording in `SKILL.md`; search weights in `search_similar.py`
    (`bm25(..., 4.0 subject, 2.0 description, 0.5 resolution, 1.5 tags)`).
-3. **Live to Schalk.** Set `SUPPORT_EMAIL_MODE=fams_proxy`. Every email still lands in the outbox
+3. **Live to Schalk.** `sudo bash deploy/set_config.sh` → Email mode `fams_proxy`. Every email still lands in the outbox
    folder too, as an audit trail.
 4. Later, replying to customers directly is a separate change: remove `create_ticket_reply`
    from the deny lists *and* change hard rules 1–2 in `AGENTS.md`. Don't do one without the other.
@@ -234,16 +253,15 @@ ls -lt $SUPPORT_AGENT_HOME/data/outbox | head
 ```
 Run history and the agent's per-run comments are on the routine's Runs page in Paperclip.
 
-## Things I couldn't confirm from the docs — check during setup
+## Things to check during setup
 
 - **How the webhook payload reaches the agent's issue.** Paperclip stores it on the routine
-  run (`triggerPayload`); the docs don't say whether it's copied into the issue text. The
-  design doesn't depend on it: every run sweeps `get_tickets` and uses the ledger, so the
-  webhook only has to *wake* the agent.
-- **Exact `env` secret-reference format** in the adapter JSON — use the UI picker.
-- **`freshdesk-mcp` tool names** can change between versions; step 4.4 checks them. Pin a
-  version in `mcp.json` (`"args": ["freshdesk-mcp==<version>"]`) once it works.
-- **Residual risk:** the agent's process can see `FRESHDESK_API_KEY` (the MCP needs it). curl,
-  wget and WebFetch are denied, and the instructions forbid direct API calls, but a determined
-  script could still use it. For stronger isolation later, run the Freshdesk MCP as a separate
-  read-only HTTP service under another user so the key never enters the agent's environment.
+  run; the docs don't say whether it's copied into the issue text. The design doesn't depend
+  on it: every run sweeps `list_recent_tickets` and uses the ledger, so the webhook only has
+  to *wake* the agent.
+- **Project MCP approval.** `.claude/settings.json` in the workspace pre-approves the
+  `freshdesk` server (`enableAllProjectMcpServers`). The step-4 test run confirms Claude Code
+  loads it; if the agent reports no Freshdesk tools, tell me what it said.
+- **Residual risk:** `agent.env` is readable by the agent's user (the scripts need it). The
+  instructions forbid reading it and the workspace settings deny the obvious ways, but it
+  isn't a hard wall. For stronger isolation later, run the Freshdesk MCP as a separate service.

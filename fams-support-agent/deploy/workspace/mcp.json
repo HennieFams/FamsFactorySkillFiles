@@ -1,0 +1,14 @@
+{
+  "mcpServers": {
+    "freshdesk": {
+      "type": "stdio",
+      "command": "/paperclip/fams-support-agent/.venv/bin/python",
+      "args": [
+        "/paperclip/fams-support-agent/scripts/freshdesk_readonly_mcp.py"
+      ],
+      "env": {
+        "SUPPORT_AGENT_HOME": "/paperclip/fams-support-agent"
+      }
+    }
+  }
+}

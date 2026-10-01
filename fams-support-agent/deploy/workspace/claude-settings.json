@@ -1,0 +1,19 @@
+{
+  "enableAllProjectMcpServers": true,
+  "enabledMcpjsonServers": [
+    "freshdesk"
+  ],
+  "env": {
+    "SUPPORT_AGENT_HOME": "/paperclip/fams-support-agent"
+  },
+  "permissions": {
+    "deny": [
+      "Bash(curl:*)",
+      "Bash(wget:*)",
+      "WebFetch",
+      "WebSearch",
+      "Read(/paperclip/fams-support-agent/config/agent.env)",
+      "Bash(cat:*agent.env*)"
+    ]
+  }
+}

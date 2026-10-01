@@ -94,13 +94,13 @@ def send_smtp(sender, to, subject, html_body):
 
 def main():
     ap = argparse.ArgumentParser()
-    ap.add_argument("--to", required=True, help="comma-separated; every address must be allow-listed")
+    ap.add_argument("--to", default="", help="comma-separated; default SUPPORT_REVIEWER_EMAIL. Every address must be allow-listed")
     ap.add_argument("--subject", required=True)
     ap.add_argument("--body-file", required=True, help="HTML file with the email body")
     ap.add_argument("--ticket-id", required=True)
     a = ap.parse_args()
 
-    to = [x.strip().lower() for x in a.to.split(",") if x.strip()]
+    to = [x.strip().lower() for x in (a.to or os.environ.get("SUPPORT_REVIEWER_EMAIL", "")).split(",") if x.strip()]
     ok = allowed()
     if not ok:
         sys.exit("REFUSED: SUPPORT_EMAIL_ALLOWED_TO is empty")

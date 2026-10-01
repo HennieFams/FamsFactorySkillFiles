@@ -11,6 +11,27 @@ INDEX_DB = HOME / "data" / "history.db"  # SQLite + FTS5 index of past tickets
 LEDGER_DB = HOME / "data" / "ledger.db"  # which new tickets were already handled
 OUTBOX = HOME / "data" / "outbox"        # copy of every email sent / dry-run
 CONFIG_DIR = Path(os.environ.get("SUPPORT_AGENT_CONFIG", HOME / "config"))
+ENV_FILE = HOME / "config" / "agent.env"  # secrets + settings, chmod 600, never in git
+
+
+def _load_env_file(path: Path = ENV_FILE) -> None:
+    """KEY=value lines -> os.environ (values already set in the environment win)."""
+    try:
+        lines = path.read_text(encoding="utf-8").splitlines()
+    except (FileNotFoundError, PermissionError):
+        return
+    for line in lines:
+        line = line.strip()
+        if not line or line.startswith("#") or "=" not in line:
+            continue
+        k, v = line.split("=", 1)
+        v = v.strip()
+        if len(v) >= 2 and v[0] == v[-1] and v[0] in "'\"":
+            v = v[1:-1]
+        os.environ.setdefault(k.strip(), v)
+
+
+_load_env_file()
 
 
 def load_column_map() -> dict:

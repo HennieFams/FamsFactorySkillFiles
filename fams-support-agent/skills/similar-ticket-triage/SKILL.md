@@ -5,19 +5,25 @@ description: Triage new Freshdesk tickets for the FAMS Support Agent — find si
 
 # Similar-ticket triage
 
-In the commands below `S=$SUPPORT_AGENT_HOME/scripts` and `PY=$SUPPORT_AGENT_HOME/.venv/bin/python`
-(always use that Python — the system `python3` doesn't have the libraries). Work in a scratch dir:
-`W=$(mktemp -d)`.
+Start every run with:
+```bash
+H=/paperclip/fams-support-agent; S=$H/scripts; PY=$H/.venv/bin/python; W=$(mktemp -d)
+$PY $S/settings.py        # START_AT, reviewer email, email mode, Freshdesk domain
+```
+Always use `$PY` (the system `python3` doesn't have the libraries). Never read `config/agent.env`
+yourself — the scripts load it. Freshdesk tools come from the MCP server `freshdesk`
+(`list_recent_tickets`, `get_ticket`, `get_ticket_conversation`, `get_contact`, `search_tickets`);
+they are read-only.
 
 ## 1. Work out which tickets to look at
 
 1. If your Paperclip issue / trigger payload mentions a Freshdesk ticket id, put it first.
-2. Also sweep for anything missed: call `get_tickets` (page 1, per_page 30). Keep tickets
-   whose `created_at` is **after `$SUPPORT_AGENT_START_AT`** and within the last 7 days.
+2. Also sweep for anything missed: call `list_recent_tickets` (per_page 30). Keep tickets
+   whose `created_at` is **after `SUPPORT_AGENT_START_AT`** (from settings.py) and within the last 7 days.
 3. Drop ids the ledger already knows: `$PY $S/ledger.py unseen <id> <id> ...`
 4. Skip (and `mark … skipped --note "<reason>"`) tickets that are:
-   - from an internal requester (`@fams.co.za`, `@tecmo.co.za`) — tickets only carry a
-     `requester_id`, so look the email up with `get_contact <requester_id>`;
+   - from an internal requester (`@fams.co.za`, `@tecmo.co.za`) — `get_ticket` returns
+     `requester_email`;
    - outbound tickets started by our own agents (`source` = 10), e.g. sending login details;
    - spam, auto-replies, out-of-office, delivery-failure notices, or empty;
    - not a support question (e.g. sales enquiry, invoice request).
@@ -44,7 +50,6 @@ $PY $S/search_similar.py --ticket-json $W/<id>.json --top 8
 count towards "other users". If results look thin, search again with your own rephrasing,
 **in both languages** (e.g. "transaksies trek nie deur" and "transactions not syncing"):
 `--description "<key symptoms>" --requester-id <id> --company-id <id> --exclude-id <id>`.
-Optionally also check `list_solution_articles` / canned responses for an existing article.
 
 **c. Judge — is there a sufficiently strong known solution?** Read every candidate's
 description *and* resolution yourself; the scores are only a shortlist.
@@ -67,7 +72,7 @@ $PY $S/ledger.py mark <id> no_match --confidence low --matched "<ids looked at>"
 **e. If HIGH or MEDIUM — draft and send.** Write `$W/<id>.html` using the template below,
 then:
 ```bash
-$PY $S/send_email.py --to "$SUPPORT_REVIEWER_EMAIL" \
+$PY $S/send_email.py \
   --subject "[Support Agent] Ticket #<id> – <ticket subject> – <HIGH|MEDIUM> confidence" \
   --body-file $W/<id>.html --ticket-id <id>
 $PY $S/ledger.py mark <id> sent --confidence <high|medium> --matched "<id1,id2,...>" --note "<fix in 1 line>"
@@ -78,7 +83,7 @@ Do not retry more than once in the same run.
 ## Email template (HTML, keep it plain)
 
 ```html
-<p><b>Proposed answer for ticket <a href="https://{FRESHDESK_DOMAIN}/a/tickets/{id}">#{id}</a></b>
+<p><b>Proposed answer for ticket <a href="https://tecmo.freshdesk.com/a/tickets/{id}">#{id}</a></b>
  — {subject}<br>Requester: {name} &lt;{email}&gt; · Region: {type} · Logged {created}<br>
  Confidence: <b>{HIGH|MEDIUM}</b> — based on {n} similar resolved tickets from {k} other customers.</p>
 
@@ -94,7 +99,7 @@ Do not retry more than once in the same run.
 
 <p><b>Why the agent thinks this fits:</b></p>
 <ul>
-  <li><a href="https://{FRESHDESK_DOMAIN}/a/tickets/{pastId}">#{pastId}</a> ({company}, {resolved date}) — {problem in a few words} → {fix in a few words}</li>
+  <li><a href="https://tecmo.freshdesk.com/a/tickets/{pastId}">#{pastId}</a> ({company}, {resolved date}) — {problem in a few words} → {fix in a few words}</li>
   …
 </ul>
 <p><b>Notes for the reviewer:</b> {differences from the past cases, anything to check first,
