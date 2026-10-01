@@ -171,20 +171,22 @@ Agents → **New Agent**:
 | Working directory (cwd) | `/paperclip/fams-support-agent/workspace` |
 | Heartbeat | **off** — it only runs when a routine wakes it |
 
-**Instructions tab:** replace the default `AGENTS.md` with the contents of `agent/AGENTS.md`
-from this repo (or, if offered, point an external instructions bundle at
-`/paperclip/fams-support-agent/agent`). The instructions tell the agent to read the skill file
-`/paperclip/fams-support-agent/skills/similar-ticket-triage/SKILL.md` itself, so you don't
-need to add it to Paperclip's skill library. (If you'd like it there too, add it from that file.)
+**Instructions tab:** replace the default text with the short contents of
+`agent/PAPERCLIP_INSTRUCTIONS.md`. It tells the agent to read
+`/paperclip/fams-support-agent/agent/AGENTS.md` from disk, so later updates arrive with
+`install.sh` and you never have to re-paste.
 
-**Test run (no routine needed yet).** Create an issue assigned to the agent:
-> *Lockdown check: run `/paperclip/fams-support-agent/.venv/bin/python /paperclip/fams-support-agent/scripts/settings.py`,
-> list the tools you have from the `freshdesk` MCP server, call `list_recent_tickets` with
-> per_page 3 and report the ticket ids and subjects. Do not process any tickets and do not send email.*
+**Freshdesk access:** the agent reads Freshdesk through the read-only command line
+`scripts/freshdesk.py` (GET requests only). This works however Paperclip launches Claude Code.
+The same calls are also available as an MCP server (`scripts/freshdesk_readonly_mcp.py`,
+`workspace/.mcp.json`) if Paperclip ever loads project MCP servers — not required.
 
-Expected comment: settings with all three secrets `true`, exactly five Freshdesk tools
-(`list_recent_tickets`, `get_ticket`, `get_ticket_conversation`, `get_contact`,
-`search_tickets`), and three real recent tickets.
+**Test run.** Create an issue assigned to the agent:
+> *Lockdown check: follow your instructions file, then run `settings.py` and
+> `freshdesk.py recent --per-page 3` and report the settings and the three ticket ids and
+> subjects. Do not process any tickets and do not send email.*
+
+Expected comment: settings with all three secrets `true`, and three real recent tickets.
 
 ## 5. Routines
 

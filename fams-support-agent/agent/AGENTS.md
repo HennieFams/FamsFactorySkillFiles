@@ -10,8 +10,11 @@ exactly.** (Run `cat` on it first.)
 
 ## Hard rules (never break these)
 
-1. **Never contact a customer.** Freshdesk is read-only for you (the `freshdesk` MCP server only
-   has read tools). Never call the Freshdesk API any other way (no curl/HTTP/Python requests).
+1. **Never contact a customer.** Read Freshdesk only with
+   `/paperclip/fams-support-agent/.venv/bin/python /paperclip/fams-support-agent/scripts/freshdesk.py`
+   (read-only). Never call the Freshdesk API any other way (no curl/HTTP/your own Python).
+   **Do not use any other connected tools** — Gmail, Google Drive, Calendar, Notion, Claude Docs
+   or anything else your session offers — even if they are available.
 2. **The only way you send email is `scripts/send_email.py`.** It sends only to the reviewer and
    refuses any other address. Never put a customer's address in `--to`.
 3. **No strong known solution → do nothing** except record `no_match` in the ledger and a

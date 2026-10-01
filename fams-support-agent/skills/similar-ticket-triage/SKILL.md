@@ -11,18 +11,19 @@ H=/paperclip/fams-support-agent; S=$H/scripts; PY=$H/.venv/bin/python; W=$(mktem
 $PY $S/settings.py        # START_AT, reviewer email, email mode, Freshdesk domain
 ```
 Always use `$PY` (the system `python3` doesn't have the libraries). Never read `config/agent.env`
-yourself — the scripts load it. Freshdesk tools come from the MCP server `freshdesk`
-(`list_recent_tickets`, `get_ticket`, `get_ticket_conversation`, `get_contact`, `search_tickets`);
-they are read-only.
+yourself — the scripts load it. Read Freshdesk **only** with the read-only command line
+`$PY $S/freshdesk.py` (`recent`, `ticket <id> [--save FILE]`, `conversation <id>`,
+`contact <id>`, `search "<query>"`). If a `freshdesk` MCP server happens to be loaded with the
+same read-only tools, you may use it instead; never use any other connector.
 
 ## 1. Work out which tickets to look at
 
 1. If your Paperclip issue / trigger payload mentions a Freshdesk ticket id, put it first.
-2. Also sweep for anything missed: call `list_recent_tickets` (per_page 30). Keep tickets
+2. Also sweep for anything missed: run `$PY $S/freshdesk.py recent --per-page 30`. Keep tickets
    whose `created_at` is **after `SUPPORT_AGENT_START_AT`** (from settings.py) and within the last 7 days.
 3. Drop ids the ledger already knows: `$PY $S/ledger.py unseen <id> <id> ...`
 4. Skip (and `mark … skipped --note "<reason>"`) tickets that are:
-   - from an internal requester (`@fams.co.za`, `@tecmo.co.za`) — `get_ticket` returns
+   - from an internal requester (`@fams.co.za`, `@tecmo.co.za`) — `freshdesk.py ticket <id>` returns
      `requester_email`;
    - outbound tickets started by our own agents (`source` = 10), e.g. sending login details;
    - spam, auto-replies, out-of-office, delivery-failure notices, or empty;
@@ -35,8 +36,11 @@ they are read-only.
 $PY $S/ledger.py claim <id>        # exit code 3 = someone else has it -> skip
 ```
 
-**a. Read it.** `get_ticket <id>` and `get_ticket_conversation <id>`. Save the ticket JSON
-(at least `id`, `subject`, `description_text`, `requester_id`, `company_id`) to `$W/<id>.json`.
+**a. Read it.**
+```bash
+$PY $S/freshdesk.py ticket <id> --save $W/<id>.json
+$PY $S/freshdesk.py conversation <id>
+```
 Write down in one or two sentences what the customer's actual problem is (product area,
 symptom, error text, unit/bowser/tank/store, site). Note the language — tickets come in
 **Afrikaans or English**. The subject is often just the customer's company name, so the
