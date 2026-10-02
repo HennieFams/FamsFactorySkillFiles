@@ -56,7 +56,9 @@ def main():
     ap.add_argument("--exclude-id", default="")
     ap.add_argument("--requester-id", default="", help="new ticket's requester_id (read from --ticket-json if given)")
     ap.add_argument("--company-id", default="", help="new ticket's company_id (read from --ticket-json if given)")
-    ap.add_argument("--top", type=int, default=8)
+    ap.add_argument("--top", type=int, default=10)
+    ap.add_argument("--max-same-customer", type=int, default=2,
+                    help="keep at most N candidates from any one customer (incl. the new ticket's), so other customers' history isn't crowded out")
     ap.add_argument("--db", default=str(INDEX_DB))
     args = ap.parse_args()
 
@@ -87,7 +89,7 @@ def main():
            FROM tickets_fts JOIN tickets t ON t.ticket_id = tickets_fts.ticket_id
            WHERE tickets_fts MATCH ? AND t.ticket_id != ?
            ORDER BY score LIMIT ?""",
-        (q, str(args.exclude_id), max(args.top * 3, 20)),
+        (q, str(args.exclude_id), max(args.top * 8, 80)),
     ).fetchall()
 
     query_set = {stem(t) for t in terms}
@@ -112,7 +114,14 @@ def main():
             "term_overlap": round(overlap, 2),
         })
     cands.sort(key=lambda c: (-c["term_overlap"], c["bm25"]))
-    cands = cands[: args.top]
+    per_customer, kept = {}, []
+    for c in cands:
+        k = c["customer_key"] or c["ticket_id"]
+        if per_customer.get(k, 0) >= args.max_same_customer:
+            continue
+        per_customer[k] = per_customer.get(k, 0) + 1
+        kept.append(c)
+    cands = kept[: args.top]
 
     # cluster candidates whose agent replies look alike (greedy, Jaccard >= 0.2)
     sets = {c["ticket_id"]: tokset(c["agent_replies"]) for c in cands if c["has_agent_reply"]}

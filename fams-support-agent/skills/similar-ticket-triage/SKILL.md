@@ -46,7 +46,10 @@ symptom, error text, unit/bowser/tank/store, site). Note the language — ticket
 **Afrikaans or English**. The subject is often just the customer's company name, so the
 problem is in the description. If a human agent has already replied, `mark … skipped`.
 
-**b. Search history.**
+**b. Check the known-fixes playbook, then search history.**
+Read `$H/skills/similar-ticket-triage/known_fixes.md` (read it once per run). Note whether the
+ticket clearly matches one entry (all "Recognise it by", none of "Not this entry if").
+Then search history:
 ```bash
 $PY $S/search_similar.py --ticket-json $W/<id>.json --top 8
 ```
@@ -60,9 +63,13 @@ description *and* resolution yourself; the scores are only a shortlist.
 
 | Level | All of these must be true | Action |
 |---|---|---|
+| **HIGH (playbook)** | the ticket clearly matches a `known_fixes.md` entry and none of its "Not this entry if" points apply, and no human has already tried that same fix on this ticket | email, cite the entry (e.g. "K2") and any matching past tickets |
 | **HIGH** | ≥3 past tickets describe **the same problem**; they come from ≥2 **different customers** (`distinct_other_customers`, not the new ticket's customer); the agents' replies state **the same fix**; the fix is concrete (steps, setting, known cause — e.g. "OWW/Limesale bowsers must stay on battery long enough to send data") | email |
 | **MEDIUM** | exactly 2 past tickets from 2 different customers with the same problem and the same concrete fix, **or** ≥3 that agree but one detail differs | email, flagged MEDIUM |
 | **LOW / NONE** | anything weaker: similar words but different problem, fixes disagree, or the replies are only questions/acknowledgements ("Ons loer gou", "Op watter stoor…?", "Can we close the ticket?"), "fixed on our side", "tech sent to site", a quote/sales follow-up, or only the same customer had it before | **do nothing** |
+
+When a playbook entry matches, follow its **Special rule** if it has one (K1: password placeholders
+only) and build the customer reply from its "Reply should say" points.
 
 Also choose **do nothing** when the answer depends on investigating this customer's own data
 (missing transaction on a date, a specific balance/volume, a reconciliation figure) — those
@@ -115,7 +122,8 @@ Write the suggested reply **in the ticket's language** and in the team's usual s
 (e.g. "Hi Eva, Hoop dit gaan goed." / "Hi Kelly, Hope you are well."). Keep it short; no other
 customers' names, company names or ticket numbers in the customer-facing part.
 `internal_notes` from past tickets may go in *Notes for the reviewer*, never in the reply.
-Never copy credentials (usernames, passwords, PINs) from history into an email.
+Never copy credentials (usernames, passwords, PINs) from history or the ticket into an email —
+for login requests use the blank placeholders `Username: [ ]` / `Password: [ ]`.
 
 ## 3. Finish the run
 
