@@ -6,10 +6,10 @@ account X", "generate the logbook for X".
 Steps:
 1. Resolve account + confirm `@from`/`@to` window with the user.
 2. Call the production proc (source kept verbatim in
-   `scripts/stored-procedures/get_ReportinglogbookRev6SARS.sql`) through the
+   `fams-integrity-agent/sql/get_ReportinglogbookRev6SARS.sql`) through the
    read-only runner — it is the one allowlisted proc:
    ```bash
-   python scripts/run_query.py --proc --csv sars.csv \
+   python <pack>/scripts/run_query.py --proc --csv sars.csv \
      --sql "EXEC get_ReportinglogbookRev6SARS @account = {AccountID}, @from = {StartDate}, @to = {EndDate}" \
      --param AccountID=278 --param StartDate=2025-10-01 --param EndDate=2025-11-01
    ```

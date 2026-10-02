@@ -10,13 +10,14 @@ right place and give a couple of standing rules that apply regardless of
 which specific investigation you're running.
 
 ## Standing rules
-- All database access goes through `scripts/fams_db.py` (read-only guard +
+- All database access goes through `fams-integrity-agent/scripts/fams_db.py`
+  (the code pack - skills carry no scripts; read-only guard +
   always-rollback). The login has admin rights; the guard is the only thing
   preventing writes. Never open a connection any other way.
 - Never run UPDATE/DELETE yourself. For a data fix, give the user the
   read-only SELECT preview, the exact ID list, and the write statement to run
   in SSMS after review.
-- Never hardcode DB credentials — env vars only (see `scripts/fams_db.py`).
+- Never hardcode DB credentials — env vars only (see `fams-integrity-agent/scripts/fams_db.py`).
 - Start every investigation in `SKILL.md`, which routes you into
   `knowledge/`, `anomaly-library/`, `business-rules/`, `algorithms/`,
   `investigation/`, `reports/`, `prompts/`, and `datasets/` as needed.

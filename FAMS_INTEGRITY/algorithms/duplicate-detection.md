@@ -7,10 +7,10 @@ reason about the overlap. Each pair a rule matches is joined into one
 extra copies' volume is the amount the totals are inflated by.
 
 The daily job runs exactly these rules in code
-(`FAMS_INTEGRITY_CHECK/scripts/integrity_checks.py` → `check_duplicates`,
+(`fams-integrity-agent/scripts/integrity_checks.py` → `check_duplicates`,
 checks C01/C02). The SQL below does the same thing for one account during
 an investigation. All of it is read-only. Run it through
-`scripts/run_query.py`.
+`fams-integrity-agent/scripts/run_query.py`.
 
 ## Fixes to the original three checks (2026-10-02)
 

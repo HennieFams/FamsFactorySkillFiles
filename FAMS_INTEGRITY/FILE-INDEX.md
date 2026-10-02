@@ -1,6 +1,6 @@
 # FAMS-Integrity-AI — File Index
 
-83 files total. Legend: ✅ = real, populated content · 📝 = stub/placeholder (needs team input) · 🔧 = script/code
+77 files total. Legend: ✅ = real, populated content · 📝 = stub/placeholder (needs team input) · 🔧 = script/code
 
 ## Root
 
@@ -128,20 +128,18 @@
 | 📝 `unit-conversions.md` | Needs confirmation of what unit Volume is stored in. |
 | ✅ `calculations.md` | Core formulas: meter-derived volume, cross-source delta, z-score, actual-volume totalizer-diff (BTLinkLost cross-check). |
 
-## scripts/ — executable code
+## Code — not in this skill
 
-| File | Purpose |
-|---|---|
-| 🔧 `fams_db.py` | The only DB access layer: env-var credentials (FAMS_DB_* or FAMS_SQL_*), lexing read-only guard, always-rollback transaction, ApplicationIntent=ReadOnly. Identical copy in `FAMS_INTEGRITY_CHECK/scripts/`. |
-| 🔧 `db_connect.py` | `--test` the connection. |
-| 🔧 `run_query.py` | Run one read-only statement with bound `{Param}` placeholders; CSV export; `--proc` for the allowlisted SARS proc. Cannot write. |
-| 🔧 `requirements.txt` | pandas, pymssql (or pyodbc), openpyxl, pytest. |
-| 🔧 `tests/test_fams_db_guard.py` | Guard bypass tests + copy-identical check. |
-| 🔧 `stored-procedures/get_ReportinglogbookRev6SARS.sql` | The actual production SARS/logbook stored procedure, kept verbatim as ground truth for `business-rules/sars-schedule6.md`. |
+Skills can't carry executable scripts (Paperclip's importer rejects them), so
+all code lives in the repo folder `fams-integrity-agent/` (installed at
+`/paperclip/fams-integrity-agent/`): `scripts/fams_db.py` (read-only DB layer),
+`db_connect.py`, `run_query.py`, the daily engine (`run_checks.py`,
+`integrity_checks.py`, `fams_sources.py`), `config/config.json`,
+`sql/get_ReportinglogbookRev6SARS.sql`, and `tests/`. See its README.
 
 ---
 
 ## Quick stats
-- **83 files** total
-- **~40 real/populated**, **~30 placeholders** needing your team's domain input, **3 scripts**
+- **77 files** total
+- **~42 real/populated**, **~30 placeholders** needing your team's domain input, no scripts (see `fams-integrity-agent/`)
 - Placeholders are concentrated in `business-rules/` (org policy specifics: SARS aside, none of your operating-hours/volume-limit/override rules are documented anywhere yet) and `examples/` (no cases logged yet)

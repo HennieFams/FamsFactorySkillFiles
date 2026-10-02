@@ -46,8 +46,9 @@ Driver: FAMS_DB_DRIVER = auto (default) | pyodbc | pymssql
   auto uses pyodbc when "ODBC Driver 18 for SQL Server" is installed,
   otherwise pymssql (pure pip wheel: `pip install pymssql`).
 
-This file is kept byte-identical in FAMS_INTEGRITY/scripts/ and
-FAMS_INTEGRITY_CHECK/scripts/ (a test enforces it). Edit both or neither.
+Lives in fams-integrity-agent/scripts/ (installed on the Paperclip VM at
+/paperclip/fams-integrity-agent/scripts/). Skill folders carry no code - the
+Paperclip skill importer rejects skills that contain executable scripts.
 """
 from __future__ import annotations
 

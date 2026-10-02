@@ -11,7 +11,7 @@ Origin: the Harrismith case (2026-09-04, TrId `ncqtMSymN5Px`): FAMS
 recorded 86.73 L, but the meter showed 400 L had been dispensed. The BT
 link was lost mid-transaction, and the next transaction's real start
 reading exposed the gap. The rule was made universal on 2026-10-02 and
-runs every day as check **C12** (`FAMS_INTEGRITY_CHECK/scripts/integrity_checks.py`
+runs every day as check **C12** (`fams-integrity-agent/scripts/integrity_checks.py`
 → `check_totaliser`).
 
 ## Definitions

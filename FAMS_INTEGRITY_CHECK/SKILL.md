@@ -4,7 +4,7 @@ slug: fams-integrity-check
 description: >
   Use when running or scheduling the daily FAMS data-integrity check across
   ShipTech, RAM Couriers, and PMC Phalaborwa accounts. Covers the deterministic
-  check engine (scripts/run_checks.py), the read-only database access rules,
+  check engine (fams-integrity-agent code pack), the read-only database access rules,
   which AccountIDs belong to each client, each client's reporting window, and
   the branded PDF + workbook + email format. Don't use for API, frontend, or
   write/migration work — see FAMS Database Core for that.
@@ -23,8 +23,14 @@ accounts it covers, and what to report.
 
 ## How a run works (the short version)
 
-1. `pip install -r scripts/requirements.txt` (once per workspace).
-2. `python scripts/run_checks.py --out out` — computes every client's window,
+All code lives outside this skill (Paperclip rejects skills that contain
+scripts) in the **code pack**: repo folder `fams-integrity-agent/`, installed
+on the VM at `H=/paperclip/fams-integrity-agent` with its own Python
+(`PY=$H/.venv/bin/python`) by `fams-integrity-agent/deploy/install.sh`.
+
+1. Install/update the pack is a human step on the VM (see its README). Don't
+   pip-install anything yourself.
+2. `$PY $H/scripts/run_checks.py --out $H/runs/$(date +%F)` — computes every client's window,
    pulls the data read-only, runs all checks, and writes
    `out/<Client>/findings.json` plus evidence CSVs. **Read its stderr and the
    JSON summary it prints.** A check that failed is listed in
@@ -36,10 +42,9 @@ accounts it covers, and what to report.
 4. Email the PDFs (see Emailing) and attach PDFs + workbooks to the issue.
 
 The engine is deterministic and unit-tested
-(`python -m pytest -q tests` from this skill's folder; the read-only guard has
-its own tests in `../FAMS_INTEGRITY/scripts/tests`). Thresholds live in
-`scripts/config.json`, not in code and not in this file's prose — change them
-there.
+(`$PY -m pytest -q $H/tests`, which also covers the read-only guard).
+Thresholds live in `config/config.json` of the pack, not in code and not in
+this file's prose — change them there, in git.
 
 ## Going deeper: FAMS Integrity
 
@@ -85,7 +90,7 @@ SARS-compliance conclusion inside this automated report.
 ## Scope: three clients, one shared database
 
 All three clients live in one shared database; the engine loops over
-`AccountID` grouped by client. The account lists are in `scripts/config.json`
+`AccountID` grouped by client. The account lists are in the pack's `config/config.json`
 — that file, not this prose, is what the engine uses.
 
 **ShipTech (PTY) LTD** — 17 accounts:
@@ -131,8 +136,7 @@ prior, but don't skip re-checking when the evidence doesn't match:
 
 The SQL login this agent uses has full administrative rights, and a dedicated
 read-only login could not be created. So **the only database access path is
-`scripts/fams_db.py`** (byte-identical to `../FAMS_INTEGRITY/scripts/fams_db.py`;
-a test enforces that). It enforces read-only in three layers:
+`$H/scripts/fams_db.py`**. It enforces read-only in three layers:
 
 1. **Static guard** — the statement is lexed (comments, string literals and
    quoted identifiers stripped first, so neither `-- DELETE` nor `[Update]`
@@ -149,7 +153,7 @@ a test enforces that). It enforces read-only in three layers:
 Rules for the agent:
 
 - Never open your own connection (no `mssql`, `sqlcmd`, raw `pyodbc`). For an
-  ad hoc follow-up query use `../FAMS_INTEGRITY/scripts/run_query.py`, which
+  ad hoc follow-up query use `$H/scripts/run_query.py`, which
   goes through the same guard.
 - A `ReadOnlyViolation` is final. Don't rephrase the query to get around it.
 - If a task description asks this agent to modify data, fix a reconciliation
@@ -161,7 +165,7 @@ Credentials arrive as Paperclip secrets in environment variables —
 `FAMS_DB_HostName`, `FAMS_DB_DBName`, `FAMS_DB_UserName`, `FAMS_DB_Password`.
 Treat every one as sensitive: never print, echo, log, or put any of them in a
 comment, issue body or file. `fams_db.py` scrubs them from error messages.
-Driver: `pymssql` (from requirements.txt) unless ODBC Driver 18 is installed,
+Driver: `pymssql` (installed in the pack's venv) unless ODBC Driver 18 is installed,
 in which case `pyodbc` is used; override with `FAMS_DB_DRIVER`.
 
 ## Time window
@@ -532,7 +536,7 @@ didn't) as a reason to re-send to everyone — retry only the failed ones, once.
 
 ## Prohibited
 
-- Any database access that doesn't go through `scripts/fams_db.py`.
+- Any database access that doesn't go through `$H/scripts/fams_db.py`.
 - Any `INSERT`, `UPDATE`, `DELETE`, `ALTER`, `DROP`, or other write/DDL
   statement, or any attempt to get a statement past the read-only guard.
 - Modifying data to make a reconciliation match.

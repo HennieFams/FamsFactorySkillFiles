@@ -133,8 +133,8 @@ reporting the number.
 
 ## Read-only access from agents
 
-Agents query FAMS only through `fams_db.py` (in `FAMS_INTEGRITY/scripts/` and
-`FAMS_INTEGRITY_CHECK/scripts/`): a lexing read-only guard, an always-rolled-back
+Agents query FAMS only through `fams_db.py` (repo `fams-integrity-agent/scripts/`,
+installed at `/paperclip/fams-integrity-agent/scripts/`): a lexing read-only guard, an always-rolled-back
 transaction, and `ApplicationIntent=ReadOnly`. The shared login has admin rights, so
 this guard is the only thing stopping a write — never bypass it.
 

@@ -4,7 +4,7 @@ import sys
 import pytest
 
 HERE = os.path.dirname(os.path.abspath(__file__))
-sys.path.insert(0, os.path.dirname(HERE))
+sys.path.insert(0, os.path.join(os.path.dirname(HERE), "scripts"))
 from fams_db import ReadOnlyViolation, _to_pyformat, assert_read_only  # noqa: E402
 
 ALLOWED = [
@@ -99,10 +99,3 @@ def test_proc_allowlist_is_strict(sql):
 def test_pyformat_conversion():
     assert _to_pyformat("SELECT * FROM T WHERE a = ? AND b LIKE '%x?%'") == \
         "SELECT * FROM T WHERE a = %s AND b LIKE '%%x?%%'"
-
-
-def test_copies_identical():
-    root = os.path.abspath(os.path.join(HERE, "..", "..", ".."))
-    a = open(os.path.join(root, "FAMS_INTEGRITY", "scripts", "fams_db.py"), "rb").read()
-    b = open(os.path.join(root, "FAMS_INTEGRITY_CHECK", "scripts", "fams_db.py"), "rb").read()
-    assert a == b, "fams_db.py must be identical in FAMS_INTEGRITY and FAMS_INTEGRITY_CHECK"

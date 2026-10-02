@@ -15,17 +15,21 @@ Known connection details (non-secret — safe to keep here):
 - Server: `db.fams.co.za`
 - Database: `FAMS2018`
 
-- `pip install -r scripts/requirements.txt` (`pymssql` needs no OS driver;
+- Code lives outside this skill (skills can't carry scripts) in the **code pack**:
+  repo folder `fams-integrity-agent/`, installed on the Paperclip VM at
+  `/paperclip/fams-integrity-agent/` (python: `$H/.venv/bin/python`). Below,
+  `<pack>` means whichever of those two you have.
+- `pip install -r <pack>/scripts/requirements.txt` (`pymssql` needs no OS driver;
   `pyodbc` + ODBC Driver 18 is used instead when installed)
 - Credentials in environment variables only — never entered into chat:
   local `FAMS_SQL_USER` / `FAMS_SQL_PASSWORD` (optionally `FAMS_SQL_SERVER`,
   `FAMS_SQL_DATABASE`, or a full `FAMS_SQL_CONN_STR`); the Paperclip agent's
   `FAMS_DB_HostName` / `FAMS_DB_DBName` / `FAMS_DB_UserName` /
   `FAMS_DB_Password` are accepted too
-- Verify with `python scripts/db_connect.py --test` before querying
+- Verify with `python <pack>/scripts/db_connect.py --test` before querying
 
 **Read-only, always.** The shared login has admin rights and a read-only login
-could not be created, so `scripts/fams_db.py` is the only path to the
+could not be created, so `<pack>/scripts/fams_db.py` is the only path to the
 database: a lexing guard that accepts a single `SELECT`/`WITH` statement (or
 an allowlisted report proc), a transaction that is always rolled back, and
 `ApplicationIntent=ReadOnly`. `run_query.py` cannot run `UPDATE`/`DELETE`.
@@ -44,7 +48,7 @@ chat; may or may not be the case in Claude Code depending on the machine).
 
 1. State plainly: **"No DB connection available — here's the SQL to run yourself."**
 2. Route to the right query as normal (`algorithms/`, `business-rules/`,
-   `scripts/stored-procedures/`), fill in the placeholders
+   `<pack>/sql/`), fill in the placeholders
    (`{AccountID}`, `{StartDate}`, etc.) with the values the user gave, and
    hand back the finished, ready-to-paste SQL.
 3. Ask the user to run it in SSMS / Azure Data Studio / their tool of
@@ -84,7 +88,7 @@ chat; may or may not be the case in Claude Code depending on the machine).
 | Allocation / cost-centre rules | `business-rules/allocation-validation.md`, `business-rules/cost-centre-validation.md` |
 | Operating hours / volume limits | `business-rules/operating-hours.md`, `business-rules/volume-limits.md` |
 | Nozzle rules, override policy, SARS Schedule 6 | `business-rules/nozzle-validation.md`, `business-rules/override-policy.md`, `business-rules/sars-schedule6.md` |
-| Generate the SARS/logbook report itself | `prompts/generate-sars-report.md`, `scripts/stored-procedures/get_ReportinglogbookRev6SARS.sql`, `business-rules/sars-schedule6.md` |
+| Generate the SARS/logbook report itself | `prompts/generate-sars-report.md`, `<pack>/sql/get_ReportinglogbookRev6SARS.sql`, `business-rules/sars-schedule6.md` |
 | Table/column meaning | `datasets/field-definitions.md`, `datasets/expected-columns.md` |
 | Validation rules, unit conversions, calculations | `datasets/validation-rules.md`, `datasets/unit-conversions.md`, `datasets/calculations.md` |
 | Industry-specific pattern (mining, logistics, etc.) | `examples/<industry>/` |
@@ -99,11 +103,13 @@ chat; may or may not be the case in Claude Code depending on the machine).
 5. **Never execute UPDATE/DELETE yourself** — the tooling refuses them. Hand the user the preview `SELECT`, the explicit ID list and the write statement to run in SSMS after they've reviewed it.
 6. **Report using `knowledge/07-report-format.md` / `reports/`.**
 
-## Scripts
+## Scripts (code pack)
 
-- `scripts/fams_db.py` — the only DB access layer: credentials from env, read-only guard, always-rollback (kept identical to `FAMS_INTEGRITY_CHECK/scripts/fams_db.py`)
+All in the code pack (`fams-integrity-agent/` in the repo; `/paperclip/fams-integrity-agent/` on the VM):
+
+- `scripts/fams_db.py` — the only DB access layer: credentials from env, read-only guard, always-rollback
 - `scripts/db_connect.py` — `--test` the connection
 - `scripts/run_query.py` — run one read-only statement (`--sql`/`--sql-file`, `--param Name=VALUE` bound as parameters, `--csv`, `--proc` for the allowlisted SARS proc)
-- `scripts/stored-procedures/get_ReportinglogbookRev6SARS.sql` — production SARS proc, verbatim, as ground truth
-- `scripts/tests/` — guard tests (`python -m pytest -q scripts/tests`)
-- The daily automated subset of this skill is implemented as code in `FAMS_INTEGRITY_CHECK/scripts/integrity_checks.py` (checks C01–C24) — reuse it on exported data with `run_checks.py --source dir --data-dir <exports>`
+- `sql/get_ReportinglogbookRev6SARS.sql` — production SARS proc, verbatim, as ground truth
+- `tests/` — guard + engine tests (`python -m pytest -q <pack>/tests`)
+- `scripts/integrity_checks.py` / `run_checks.py` — the daily automated subset of this skill (checks C01–C24); reuse on exported data with `run_checks.py --source dir --data-dir <exports>`

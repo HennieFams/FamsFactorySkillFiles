@@ -1,7 +1,7 @@
 # SARS Schedule 6 Rebate Reporting
 
 This is a real, implemented rule — not a placeholder. Source of truth:
-`scripts/stored-procedures/get_ReportinglogbookRev6SARS.sql` (the stored
+`fams-integrity-agent/sql/get_ReportinglogbookRev6SARS.sql` (the stored
 proc is on Rev 7 of its internal fix history; object name is still
 `get_ReportinglogbookRev6SARS`). Call signature:
 

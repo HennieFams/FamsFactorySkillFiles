@@ -5,7 +5,7 @@ Read-only, always. Every statement goes through fams_db.assert_read_only()
 and runs inside a transaction that is rolled back. There is deliberately
 no way to run UPDATE/DELETE through this tool: when an investigation ends
 in a data fix, hand the human the exact SQL (preview SELECT + explicit ID
-list + the write) to run themselves in SSMS. See ../CLAUDE.md.
+list + the write) to run themselves in SSMS. See FAMS_INTEGRITY/CLAUDE.md.
 
 Placeholders:
   {Name}  - filled from --param Name=VALUE and sent as a bound parameter

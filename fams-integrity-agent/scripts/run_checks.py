@@ -272,7 +272,7 @@ def run_client(src, client, cfg, run_time_sast, out_root):
 
 def main():
     ap = argparse.ArgumentParser()
-    ap.add_argument("--config", default=os.path.join(HERE, "config.json"))
+    ap.add_argument("--config", default=os.path.join(os.path.dirname(HERE), "config", "config.json"))
     ap.add_argument("--client", action="append", help="client short name (repeatable); default all")
     ap.add_argument("--run-time", help="run time, SAST unless an offset is given (default: now)")
     ap.add_argument("--source", choices=["db", "dir"], default="db")

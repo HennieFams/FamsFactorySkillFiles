@@ -25,4 +25,4 @@
 
 Detection queries live in `algorithms/` rather than here — this file is the
 "what/why"; the daily job implements all of the above in
-`FAMS_INTEGRITY_CHECK/scripts/integrity_checks.py`.
+`fams-integrity-agent/scripts/integrity_checks.py`.

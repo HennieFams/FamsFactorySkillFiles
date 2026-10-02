@@ -5,7 +5,7 @@ Every planted problem must be found with the right check/status, and the
 known false-positive traps (N/A UnqTrID grouping, non-comms totaliser
 starts, interleaved nozzles, near-empty comm errors) must NOT fire.
 
-Run:  python -m pytest -q FAMS_INTEGRITY_CHECK/tests
+Run:  python -m pytest -q fams-integrity-agent/tests
 """
 import copy
 import json
@@ -17,6 +17,7 @@ import pytest
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 SCRIPTS = os.path.join(os.path.dirname(HERE), "scripts")
+CONFIG = os.path.join(os.path.dirname(HERE), "config", "config.json")
 sys.path.insert(0, SCRIPTS)
 
 import run_checks  # noqa: E402
@@ -29,7 +30,7 @@ T = lambda h, m=0, s=0: W0 + pd.Timedelta(hours=h, minutes=m, seconds=s)  # noqa
 
 
 def base_cfg():
-    with open(os.path.join(SCRIPTS, "config.json")) as fh:
+    with open(CONFIG) as fh:
         cfg = json.load(fh)
     cfg = copy.deepcopy(cfg)
     cfg["clients"] = [{"name": "Test Client (PTY) LTD", "short": "TestCo", "boundary_hour_sast": 6,
