@@ -43,3 +43,10 @@ reading (see `datasets/calculations.md` for the full rule):
 Also exclude zero-`Volume` rows from the nozzle's totalizer sequence
 entirely — their totalizer snapshot is stale/unrelated to real dispensing
 and will corrupt a next-transaction lookup if left in.
+
+## Totaliser continuity
+
+Readings on a nozzle must chain: each transaction's start = the previous
+transaction's end (±2 L). A jump is a skipped/unrecorded volume or a reset.
+Full rule, IOT `TotaliserFromComms` caveat and SQL:
+`algorithms/totaliser-continuity.md`.

@@ -1,0 +1,6 @@
+pandas>=2.0
+numpy
+openpyxl
+pymssql
+# or: pyodbc + "ODBC Driver 18 for SQL Server" (set FAMS_DB_DRIVER=pyodbc)
+pytest

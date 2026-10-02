@@ -1,0 +1,93 @@
+{
+  "_comment": "Daily FAMS integrity check configuration. Edit here, not in code. Every value is read by run_checks.py; see ../SKILL.md 'Configuration'.",
+
+  "db_timezone": "Africa/Johannesburg",
+  "window_hours": 48,
+  "lookback_hours": 72,
+
+  "tolerances": {
+    "volume_tolerance_pct": 1.0,
+    "comm_error_tolerance": 10,
+    "near_empty_tank_litres": 10.0,
+    "totaliser_continuity_litres": 2.0,
+    "actual_volume_delta_litres": 2.0,
+    "material_loss_litres": 500,
+    "material_loss_pct_of_capacity": 5.0,
+    "noise_stdev_litres": 1000,
+    "delivery_jump_litres": 3500,
+    "telemetry_gap_minutes": 60,
+    "raw_feed_silence_minutes": 30,
+    "transfer_atg_match_minutes": 15,
+    "duplicate_near_time_seconds": 120,
+    "outlier_iqr_multiplier": 3.0,
+    "outlier_min_history": 20,
+    "btlinklost_equipment_gap_minutes": 5,
+    "btlinklost_outlier_min_events": 5,
+    "infrec_truncation_pct": 25.0
+  },
+
+  "recnumber_known_patterns": [
+    "^importFams$",
+    "^importLog$",
+    "^\\d{8}$",
+    "^\\d{5}$"
+  ],
+  "recnumber_offload_batch_pattern": "^4627\\d+$",
+
+  "clients": [
+    {
+      "name": "ShipTech (PTY) LTD",
+      "short": "ShipTech",
+      "boundary_hour_sast": 6,
+      "accounts": {
+        "321": "Shiptech (Unidentified/HQ)",
+        "328": "Cato Ridge",
+        "345": "Harrismith",
+        "346": "Estcourt",
+        "350": "City Deep",
+        "353": "North Point",
+        "354": "Richards Bay",
+        "360": "Kokstad",
+        "361": "Port Shepstone",
+        "365": "TWK Interlink",
+        "373": "Piet Retief",
+        "378": "Nelspruit",
+        "383": "Paarl",
+        "389": "Lydenburg",
+        "394": "Bridgeport",
+        "397": "PMB",
+        "404": "Springmeadow"
+      }
+    },
+    {
+      "name": "RAM Couriers",
+      "short": "RAM-Couriers",
+      "boundary_hour_sast": 0,
+      "accounts": { "390": null, "391": null }
+    },
+    {
+      "name": "PMC Phalaborwa",
+      "short": "PMC-Phalaborwa",
+      "boundary_hour_sast": 0,
+      "accounts": { "285": null }
+    }
+  ],
+
+  "known_offload_equipment_ids": {
+    "328": [26409],
+    "373": [30817]
+  },
+  "pending_offload_equipment_ids": {
+    "378": [31602],
+    "365": [29307],
+    "360": [29365],
+    "397": [37571]
+  },
+  "known_dual_write_equipment_ids": {
+    "365": [29307],
+    "397": [37571]
+  },
+  "known_benign_outlier_equipment_ids": {
+    "394": [36941]
+  }
+}

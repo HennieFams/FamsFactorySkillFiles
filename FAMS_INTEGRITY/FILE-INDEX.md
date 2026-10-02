@@ -1,6 +1,6 @@
 # FAMS-Integrity-AI — File Index
 
-77 files total. Legend: ✅ = real, populated content · 📝 = stub/placeholder (needs team input) · 🔧 = script/code
+83 files total. Legend: ✅ = real, populated content · 📝 = stub/placeholder (needs team input) · 🔧 = script/code
 
 ## Root
 
@@ -27,7 +27,7 @@
 
 | File | Purpose |
 |---|---|
-| ✅ `data-quality.md` | Unreconciled IDs, malformed JSON, missing EquipmentID, duplicates. |
+| ✅ `data-quality.md` | Unreconciled/missing IDs, collisions, truncated InformationRec, missing EquipmentID, ProductID = 0, duplicates. |
 | ✅ `transaction-integrity.md` | Cross-source volume disagreement (IOT vs Android vs UsageDispensing). |
 | 📝 `employee-integrity.md` | Employee-level anomaly signals — needs your team's input. |
 | ✅ `equipment-integrity.md` | Equipment-level anomaly signals (bad EquipmentID, manual-entry rate). |
@@ -58,7 +58,8 @@
 
 | File | Purpose |
 |---|---|
-| ✅ `duplicate-detection.md` | The 3 dedup SQL checks + the UnqTrID/TransactionID backfill queries (from your original pasted SQL). |
+| ✅ `duplicate-detection.md` | Five duplicate rules (fixes the gaps in the original three: N/A-UnqTrID false groups, seconds-apart dual writes, non-deterministic keeper, double counting), TransactionID collisions, backfill queries. |
+| ✅ `totaliser-continuity.md` | Per-nozzle totaliser flow rule (next start = previous end ±2 L), IOT TotaliserFromComms caveat, report columns, SQL. |
 | ✅ `atg-reconciliation.md` | IOT vs Android vs UsageDispensing three-way volume comparison queries, raw-payload trace, plus the Transfer/Receiving vs. ATG telemetry cross-check (device/time-anchored via IOTData_Notification, not fillTrId). |
 | ✅ `outlier-detection.md` | Z-score-based per-equipment volume outlier query. |
 | ✅ `z-score.md` | When to use z-score vs. IQR for skewed volume distributions. |
@@ -131,13 +132,16 @@
 
 | File | Purpose |
 |---|---|
-| 🔧 `db_connect.py` | Azure SQL connection helper. Reads credentials from env vars only — never hardcoded. |
-| 🔧 `run_query.py` | CLI to run a SQL file or inline query against the DB, with `{PARAM}` substitution and CSV export. |
+| 🔧 `fams_db.py` | The only DB access layer: env-var credentials (FAMS_DB_* or FAMS_SQL_*), lexing read-only guard, always-rollback transaction, ApplicationIntent=ReadOnly. Identical copy in `FAMS_INTEGRITY_CHECK/scripts/`. |
+| 🔧 `db_connect.py` | `--test` the connection. |
+| 🔧 `run_query.py` | Run one read-only statement with bound `{Param}` placeholders; CSV export; `--proc` for the allowlisted SARS proc. Cannot write. |
+| 🔧 `requirements.txt` | pandas, pymssql (or pyodbc), openpyxl, pytest. |
+| 🔧 `tests/test_fams_db_guard.py` | Guard bypass tests + copy-identical check. |
 | 🔧 `stored-procedures/get_ReportinglogbookRev6SARS.sql` | The actual production SARS/logbook stored procedure, kept verbatim as ground truth for `business-rules/sars-schedule6.md`. |
 
 ---
 
 ## Quick stats
-- **77 files** total
+- **83 files** total
 - **~40 real/populated**, **~30 placeholders** needing your team's domain input, **3 scripts**
 - Placeholders are concentrated in `business-rules/` (org policy specifics: SARS aside, none of your operating-hours/volume-limit/override rules are documented anywhere yet) and `examples/` (no cases logged yet)

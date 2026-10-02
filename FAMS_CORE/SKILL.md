@@ -60,7 +60,15 @@ not resolved by changing the test.
 ## Reporting convention
 
 The FAMS daily reporting boundary is 06:00 SAST, not midnight. Any daily aggregate,
-reconciliation or report window using a midnight boundary is wrong.
+reconciliation or report window using a midnight boundary is wrong — unless it is a
+listed, human-approved per-client exception:
+
+| Client | Boundary | Approved | Where it's set |
+|---|---|---|---|
+| RAM Couriers (390, 391) | 00:00 SAST | Hennie, 2026-10-02 | `FAMS_INTEGRITY_CHECK/scripts/config.json` (`boundary_hour_sast`) |
+| PMC Phalaborwa (285) | 00:00 SAST | Hennie, 2026-10-02 | same |
+
+An agent must not add a client to this table on its own judgement.
 
 ## Work products
 

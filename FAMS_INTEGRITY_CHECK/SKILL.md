@@ -3,10 +3,11 @@ name: FAMS Integrity Check
 slug: fams-integrity-check
 description: >
   Use when running or scheduling the daily FAMS data-integrity check across
-  ShipTech, RAM Couriers, and PMC Phalaborwa accounts. Covers how to connect to
-  the shared FAMS Azure SQL database, which AccountIDs belong to each client,
-  the read-only query pattern, and the reporting format. Don't use for API,
-  frontend, or write/migration work — see FAMS Database Core for that.
+  ShipTech, RAM Couriers, and PMC Phalaborwa accounts. Covers the deterministic
+  check engine (scripts/run_checks.py), the read-only database access rules,
+  which AccountIDs belong to each client, each client's reporting window, and
+  the branded PDF + workbook + email format. Don't use for API, frontend, or
+  write/migration work — see FAMS Database Core for that.
 metadata:
   owner: Hennie
   status: DRAFT
@@ -16,222 +17,169 @@ metadata:
 # FAMS Integrity Check
 
 Read [FAMS Database Core](../FAMS_DATABASE_CORE/SKILL.md) first — it covers table
-roles, field semantics, and the 06:00 SAST daily boundary. This skill covers the
-recurring integrity-check job specifically: which accounts to check, how to
-connect, and what to report.
+roles, field semantics, and the reporting-boundary rule. This skill covers the
+recurring integrity-check job specifically: how to run the check engine, which
+accounts it covers, and what to report.
+
+## How a run works (the short version)
+
+1. `pip install -r scripts/requirements.txt` (once per workspace).
+2. `python scripts/run_checks.py --out out` — computes every client's window,
+   pulls the data read-only, runs all checks, and writes
+   `out/<Client>/findings.json` plus evidence CSVs. **Read its stderr and the
+   JSON summary it prints.** A check that failed is listed in
+   `checks_run`/`data_gaps` — report it as "unverifiable", never as clean.
+3. Build each client's PDF and workbook **from `findings.json` only** (see
+   Reporting). Do not recompute any number, do not re-query the database to
+   "improve" a figure, and do not add findings the engine did not produce. If
+   you think something is missing, say so in the issue comment.
+4. Email the PDFs (see Emailing) and attach PDFs + workbooks to the issue.
+
+The engine is deterministic and unit-tested
+(`python -m pytest -q tests` from this skill's folder; the read-only guard has
+its own tests in `../FAMS_INTEGRITY/scripts/tests`). Thresholds live in
+`scripts/config.json`, not in code and not in this file's prose — change them
+there.
 
 ## Going deeper: FAMS Integrity
 
 [FAMS Integrity](../FAMS_INTEGRITY/SKILL.md) is the full investigation knowledge
-base this daily check is a fixed, automated subset of — algorithms, an anomaly
-library, business rules, and per-domain investigation guides. You don't need to
-read all of it every run; consult the specific file when a finding needs deeper
-reasoning than the four automated checks below provide, or when something looks
-like it might be one of the categories out of scope for this daily job (see
-below). Each of this skill's checks traces back to a canonical file there:
+base this daily check is a fixed, automated subset of. Every check the engine
+runs traces back to a file there or in `fams-daily-report` (the
+`check_registry` block in `findings.json` lists them):
 
-| This check | FAMS Integrity source |
-|---|---|
-| Duplicate transactions | `algorithms/duplicate-detection.md` |
-| Missing TransactionID, IOT/Android/Log reconciliation | `algorithms/atg-reconciliation.md`, `anomaly-library/transaction-integrity.md` |
-| Suspicious gaps / data-gap handling | `anomaly-library/data-quality.md` |
-| Tank-linked offload equipment, manual-entry candidates | `anomaly-library/equipment-integrity.md` |
-| Tank opening/closing/capacity | `investigation/tank.md` |
-| ATG fill/drop events, erratic-telemetry | `investigation/atg.md`, `algorithms/atg-reconciliation.md` |
-| Communication health / near-empty-tank downgrade | `anomaly-library/device-integrity.md`, `investigation/devices.md` |
+| Check | What it finds | Source |
+|---|---|---|
+| C01 | Duplicate transactions — 5 rules (UnqTrID+Volume+Equipment, UnqTrID+Equipment+Time, Store+Volume+Time, same TransactionID+same volume, same Equipment+Volume within 120 s), merged into one group per event, lowest ID kept as original, known dual-pipeline bug tagged | `algorithms/duplicate-detection.md` |
+| C02 | TransactionID collision — same ID, different volumes | `algorithms/duplicate-detection.md` |
+| C03 | Missing TransactionID (with backfill candidate from InformationRec) | `anomaly-library/data-quality.md` |
+| C04 | Unreconciled UnqTrID ('N/A'/NULL) | `datasets/validation-rules.md` |
+| C05 | InformationRec truncated ("Over Character Limit") / blank above 25% | `anomaly-library/data-quality.md` |
+| C06 | Unexplained dispensing (no IOT **and** no Android record); split out if inside a raw-feed outage; owner-confirmed offload equipment excluded; pending offload equipment and MAC-prefixed IDs annotated | `algorithms/atg-reconciliation.md`, `investigation/networking.md` |
+| C07 | Volume mismatch canonical vs IOT/Android > 1% | `algorithms/atg-reconciliation.md` |
+| C08 | IOT/Android record that never reached UsageDispensing/Transfer/Receiving (searched across the whole fetched range) | `anomaly-library/transaction-integrity.md` |
+| C09 | IOTData_FMS TypeID outside 1–4 | `datasets/field-definitions.md` |
+| C10 | Recnumber: manual-entry candidates; 4627x batch series (known pattern on known/pending offload equipment, Investigate elsewhere); blank Recnumber | `anomaly-library/equipment-integrity.md` |
+| C11 | ProductID / ProdID = 0 (or blank) in UsageDispensing, IOT, Android, Transfer, Receiving and IOTData_FMS TelementryData | `anomaly-library/data-quality.md` |
+| C12 | Totaliser flow continuity per nozzle — next start must equal previous end within 2 L | `algorithms/totaliser-continuity.md` |
+| C13 | Totaliser overflow sentinel (4294967.x) and capture failures on nozzles that normally report a totaliser | `datasets/calculations.md` |
+| C14 | BTLinkLost: recorded vs meter volume, TrId missing from canonical, per-device concentration with idle-timeout signature | `anomaly-library/device-integrity.md` |
+| C15 | Missing EquipmentID (0/NULL), with BTLinkLost ±5 min co-occurrence | `anomaly-library/data-quality.md` |
+| C16 | NoFlow stop with no DispTransactionComplete for the same TrId | `anomaly-library/device-integrity.md` |
+| C17 | Telemetry gaps > 60 min (Stock, ATG), units that stopped reporting, accounts with no data at all | `investigation/networking.md` |
+| C18 | Store-level tank variance: tank decline (deliveries > 3500 L excluded) vs dispensed + transferred; possible unexplained fuel loss | `investigation/tank.md` |
+| C19 | ATG telemetry noise (rolling stdev), reading above capacity | `investigation/atg.md` |
+| C20 | Communication errors over 10/device, near-empty-tank downgrade | `anomaly-library/device-integrity.md` |
+| C21 | Transfer/Receiving volume vs ATG fill/drop (anchored via Notification TrId, not fillTrId) | `algorithms/atg-reconciliation.md` |
+| C22 | Raw payload errors (TempTableDataJson.errorid ≠ 0) | `investigation/devices.md` |
+| C23 | Volume outliers per equipment (Q3 + 3×IQR on the unit's own history); Bridgeport 36941 known benign | `algorithms/outlier-detection.md` |
+| C24 | Allocation / cost-centre references that don't resolve or have no description | `business-rules/allocation-validation.md`, `cost-centre-validation.md` |
 
-**Deliberately out of scope for this automated daily job** (this stays true
-even though you now have the deeper skill available): fraud indicators,
-employee-level behavioural analysis, equipment/nozzle/cost-centre validation,
-seasonal and predictive anomaly detection, and SARS Schedule 6 reporting. If
-something in this run's data looks like one of these, say so as a finding
-(status Monitor or Investigate, per the categories below) and note that it
-needs a human using FAMS Integrity directly — don't independently reach a
-fraud or SARS-compliance conclusion inside this automated daily report.
+**Still out of scope for this automated daily job**: fraud indicators,
+employee-level behavioural analysis, seasonal and predictive anomaly
+detection, and SARS Schedule 6 reporting. If something in this run's data
+looks like one of these, say so as a finding (Monitor or Investigate) and note
+that it needs a human using FAMS Integrity directly — don't reach a fraud or
+SARS-compliance conclusion inside this automated report.
 
 ## Scope: three clients, one shared database
 
-All FAMS data for these clients lives in a single shared database. There is one
-connection, and the check loops over `AccountID` grouped by client.
+All three clients live in one shared database; the engine loops over
+`AccountID` grouped by client. The account lists are in `scripts/config.json`
+— that file, not this prose, is what the engine uses.
 
-**ShipTech (PTY) LTD** — 18 accounts per the account master, but only 17 have
-ever actually appeared in confirmed reporting data:
-321, 328, 345, 346, 350, 353, 354, 360, 361, 365, 373, **377**, 378, 383, 389,
-394, 397, 404
+**ShipTech (PTY) LTD** — 17 accounts:
+321, 328, 345, 346, 350, 353, 354, 360, 361, 365, 373, 378, 383, 389, 394,
+397, 404. (AccountID 377 "Retail (Zimbabwe)" was removed 2026-10-02 — site
+discontinued. Don't add it back.)
 
-**⚠️ Unresolved discrepancy — do not silently resolve this either way.**
-AccountID `377` ("Retail (Zimbabwe)" per the account master) does **not**
-appear in the confirmed 17-account ShipTech map that `fams-daily-report` has
-validated across multiple reporting windows. This could mean it's a
-legitimate account with no activity in the windows checked so far, or there's
-a real reason it doesn't belong in a SAST-anchored daily check (different
-system, currency, or timezone for Zimbabwe operations). Include it in the
-check, but if it genuinely has zero rows across the whole 48-hour window,
-report that explicitly as "no data — unconfirmed account, needs owner
-sign-off" rather than either silently treating it as clean or silently
-dropping it from the report.
+**RAM Couriers** — 2 accounts: 390, 391
 
-**RAM Couriers** — 2 accounts:
-390, 391
-
-**PMC Phalaborwa** — 1 account:
-285
+**PMC Phalaborwa** — 1 account: 285
 
 Treat each client's accounts as one group in the report. An anomaly in one
-ShipTech depot does not need escalating the same way an anomaly affecting all
-18 would.
+ShipTech depot does not need escalating the same way as one affecting all 17.
+If a new AccountID shows up in a client's data that isn't in config, say so in
+the issue comment — don't add it yourself.
 
 ## ShipTech-specific known patterns (confirmed, not hypothetical)
 
-These are empirically confirmed across multiple real reporting windows —
-treat them as a starting prior, but don't skip re-checking when the evidence
-doesn't match:
+These are encoded in `config.json` and the checks. Treat them as a starting
+prior, but don't skip re-checking when the evidence doesn't match:
 
 - **Tank-linked offload equipment** (MAC-format `TransactionID`, non-standard
-  `Recnumber`, otherwise looks like "unexplained dispensing"): confirmed at
-  Cato Ridge (EquipmentID 26409), Piet Retief (30817); recurring but still
-  pending account-owner sign-off at Nelspruit (31602), TWK Interlink (29307),
-  Kokstad (29365), PMB (37571). Don't treat these as fresh anomalies each run,
-  but don't add a new EquipmentID to this list without owner confirmation
-  either.
-- **Recnumber `4627x+` batch series** — a large-volume (600–40,000+ L)
-  transfer/offload record with a MAC-prefixed `TransactionID` on one of the
-  equipment IDs above is a known, confirmed pattern, not a manual-entry or
-  fraud indicator, even though it falls outside the normal batch-recnumber
-  format.
-- **Confirmed duplicate-write bug (TWK Interlink, PMB)**: the same physical
-  transfer/offload event gets written to `UsageDispensing` twice — once via
-  the batch-transfer import, once via `importFams` — seconds apart, same
-  `TransactionID`/`UnqTrID`/`Volume`/`EquipmentID`. If a duplicate-transaction
-  finding matches this exact signature, cite the known bug rather than
-  reporting it as a generic new duplicate.
-- **Telemetry-outage false positive**: before reporting a low reconciliation
-  percentage or a large "unexplained dispensing" total as a possible fraud or
-  data-integrity issue, check whether the raw device tables
-  (`UsageDispensingAndroid`/`UsageDispensingIOT`) simply stopped reporting for
-  a stretch of hours while `UsageDispensing` kept logging normally through a
-  different path. A real outage shows as a large gap in consecutive
-  `Createdate` values, not an even trickle — cross-check against `Stock`/ATG
-  readings for the same store to confirm a site-wide outage.
-- **Cross-day matching**: a transaction can straddle the day boundary (e.g.
-  23:48 on day N) and simply not exist in the file whose own window starts at
-  the boundary on day N+1. When checking whether something is "missing,"
-  search the full 48-hour window's data, not just the half of it closer to
-  the event.
+  `Recnumber`): confirmed at Cato Ridge (EquipmentID 26409) and Piet Retief
+  (30817) → `known_offload_equipment_ids`, excluded from C06. Recurring but
+  pending owner sign-off at Nelspruit (31602), TWK Interlink (29307), Kokstad
+  (29365), PMB (37571) → `pending_offload_equipment_ids`, still counted but
+  annotated. Move an ID from pending to known only after the owner confirms.
+- **Recnumber `4627x+` batch series** — large transfer/offload records on the
+  equipment above. C10 reports these as Monitor (known pattern) and as
+  Investigate only on unexpected equipment.
+- **Confirmed duplicate-write bug (TWK Interlink, PMB)** — same event written
+  by the batch-transfer import and by `importFams` seconds apart. C01 tags
+  these "known dual-pipeline bug" so the report cites the known bug.
+- **Telemetry-outage false positive** — C06 separates unexplained transactions
+  that fall inside an IOT+Android silence (> 30 min either side) into a
+  Monitor finding, and C17 reports the gaps themselves. Report the outage
+  explicitly; don't present the raw reconciliation % without that context.
+- **Cross-day matching** — the engine fetches a 72-hour lookback plus
+  everything up to the run time, so matching (duplicates, BTLinkLost TrIds,
+  raw-vs-canonical) never misses a record that straddles the boundary.
 
-## Connecting
+## Database access — read-only, enforced in code
 
-Connection details arrive as environment variables, all four backed by
-Paperclip secrets — never hardcode them, never print any of them, never
-include any of them in a comment, issue body, or log line, even the ones that
-don't look like secrets:
+The SQL login this agent uses has full administrative rights, and a dedicated
+read-only login could not be created. So **the only database access path is
+`scripts/fams_db.py`** (byte-identical to `../FAMS_INTEGRITY/scripts/fams_db.py`;
+a test enforces that). It enforces read-only in three layers:
 
-- `FAMS_DB_HostName` — hostname
-- `FAMS_DB_DBName` — database name
-- `FAMS_DB_UserName` — login
-- `FAMS_DB_Password` — password
+1. **Static guard** — the statement is lexed (comments, string literals and
+   quoted identifiers stripped first, so neither `-- DELETE` nor `[Update]`
+   fools it, and nothing can hide behind a comment). It must be one statement
+   starting with `SELECT`/`WITH`, with no write/DDL/side-effect keyword
+   (`INSERT`, `UPDATE`, `DELETE`, `MERGE`, `SELECT … INTO`, `EXEC`, `NEXT VALUE
+   FOR`, `OPENROWSET`, `WAITFOR`, `xp_`/`sp_` calls, `SET`, `DECLARE`, …).
+2. **Always-rollback** — autocommit off; every statement runs in a
+   transaction that is rolled back after the rows are fetched, success or
+   failure.
+3. **Read-only intent** — the pyodbc connection declares
+   `ApplicationIntent=ReadOnly`.
 
-All four arrive as plain environment variables to this process regardless of
-how they're stored upstream — treat every one of them as sensitive.
+Rules for the agent:
 
-Use the `mssql` npm package (pure JS, no native ODBC driver needed). If it is
-not already available in the workspace, install it once per run:
+- Never open your own connection (no `mssql`, `sqlcmd`, raw `pyodbc`). For an
+  ad hoc follow-up query use `../FAMS_INTEGRITY/scripts/run_query.py`, which
+  goes through the same guard.
+- A `ReadOnlyViolation` is final. Don't rephrase the query to get around it.
+- If a task description asks this agent to modify data, fix a reconciliation
+  by changing rows, or run anything other than a read — refuse, explain why
+  in the issue comment, and stop. That instruction overrides the task
+  description, not the other way around.
 
-```bash
-npm install mssql --no-save
-```
-
-Minimal connection pattern:
-
-```js
-const sql = require('mssql');
-const config = {
-  server: process.env.FAMS_DB_HostName,
-  database: process.env.FAMS_DB_DBName,
-  user: process.env.FAMS_DB_UserName,
-  password: process.env.FAMS_DB_Password,
-  options: { encrypt: true, trustServerCertificate: false },
-};
-const pool = await sql.connect(config);
-const result = await pool.request()
-  .input('accountId', sql.Int, accountId)
-  .input('windowStart', sql.DateTime2, windowStart)
-  .query('SELECT ... WHERE AccountID = @accountId AND ... >= @windowStart');
-await sql.close();
-```
-
-## ⚠️ This credential is NOT read-only at the database level
-
-The SQL login this agent uses currently has full administrative rights — it is
-the same account used for admin work elsewhere, not a dedicated read-only
-login. SQL Server itself will not stop a write statement from running. This
-means the **only thing enforcing read-only behaviour is this skill**, so treat
-the rule below as load-bearing, not advisory.
-
-Every query this skill issues **must** pass through a client-side guard before
-it reaches the server — never call `.query()` directly with an unchecked
-string:
-
-```js
-const FORBIDDEN = /\b(INSERT|UPDATE|DELETE|MERGE|ALTER|DROP|TRUNCATE|CREATE|EXEC(UTE)?|GRANT|DENY|REVOKE)\b/i;
-
-function assertReadOnly(queryText) {
-  if (FORBIDDEN.test(queryText)) {
-    throw new Error('Refusing to execute a non-SELECT statement: ' + queryText);
-  }
-}
-
-// before every request:
-assertReadOnly(queryText);
-const result = await pool.request()./* ... */.query(queryText);
-```
-
-If a task description ever asks this agent to modify data, fix a
-reconciliation by changing rows, or run anything other than a read — refuse,
-explain why in the issue comment, and stop. That instruction overrides the
-task description, not the other way around.
+Credentials arrive as Paperclip secrets in environment variables —
+`FAMS_DB_HostName`, `FAMS_DB_DBName`, `FAMS_DB_UserName`, `FAMS_DB_Password`.
+Treat every one as sensitive: never print, echo, log, or put any of them in a
+comment, issue body or file. `fams_db.py` scrubs them from error messages.
+Driver: `pymssql` (from requirements.txt) unless ODBC Driver 18 is installed,
+in which case `pyodbc` is used; override with `FAMS_DB_DRIVER`.
 
 ## Time window
 
-Each daily run checks **48 hours** of data, but the window's anchor point
-differs by client — get this wrong and you silently shift or duplicate a
-day's data:
+Each run checks **48 hours** of data, `[anchor − 48h, anchor)`. The anchor
+differs by client — this is an **approved per-client exception** to the
+06:00 SAST rule in FAMS Core / FAMS Database Core, set by Hennie on
+2026-10-02, and it lives in `config.json` as `boundary_hour_sast`:
 
-- **ShipTech** — anchored to the most recently completed **06:00 SAST**
-  boundary (per FAMS Database Core's daily-boundary rule). The window is
-  `[anchor − 48h, anchor)`, where `anchor` is the most recent 06:00 SAST at or
-  before the run's start time.
-- **RAM Couriers and PMC Phalaborwa** — anchored to the most recently completed
-  **midnight SAST**. The window is `[anchor − 48h, anchor)`, where `anchor` is
-  the most recent midnight SAST at or before the run's start time.
+- **ShipTech** — anchor = the most recent **06:00 SAST** at or before the run.
+- **RAM Couriers and PMC Phalaborwa** — anchor = the most recent **midnight
+  SAST** at or before the run.
 
-**The container's system clock is UTC, not SAST.** South Africa does not
-observe daylight saving, so SAST is always UTC+2 — but you must convert
-explicitly rather than trust local system time to already be SAST. Compute
-each anchor in SAST, then convert to UTC before querying (the database's
-timestamps' own timezone should be confirmed against FAMS Database Core rather
-than assumed).
-
-State each client's exact window start/end, in both SAST and UTC, at the top
-of that client's report — this is a common source of silent off-by-one-day
-errors and should be auditable at a glance.
-
-## What to check, per account
-
-Run these checks for every `AccountID` in every client group, within the
-window:
-
-1. **Duplicate transactions** — same dispensing event recorded more than once.
-   Check before reporting any volume total; a duplicate silently inflates it.
-2. **Missing `TransactionID`** — rows that should carry one but don't.
-3. **IOT vs Android vs Log reconciliation** — where more than one capture path
-   exists for the same account, flag volume mismatches between them beyond a
-   reasonable tolerance rather than assuming one source is correct.
-4. **Suspicious gaps** — a device or account with no data at all inside a
-   48-hour window, when it normally reports continuously, is itself a finding.
-
-Use `UnqTrID`, `Recnumber`, and `TransactionID` per their distinct roles (see
-FAMS Database Core) — never join across these as if they were interchangeable.
+The engine does the timezone maths (container clock is UTC; SAST is always
+UTC+2, no DST) and assumes database timestamps are SAST (`db_timezone` in
+config — change it there if that's ever shown to be wrong). It writes each
+window in SAST and UTC into `findings.json → window`; put exactly those
+strings at the top of each client's report.
 
 ## Reporting: one branded management report per client, plus a technical workbook
 
@@ -243,7 +191,19 @@ Tecmo Automation for the same kind of daily check — follow it exactly rather
 than reverting to a flat per-account list). Use the same full structure for
 RAM Couriers (2 accounts) and PMC Phalaborwa (1 account) as for ShipTech — a
 one- or two-row Portfolio Summary table is still a table; don't shrink the
-report's structure just because there's less to put in it:
+report's structure just because there's less to put in it.
+
+Every number and finding comes from that client's `findings.json`:
+
+| Report element | `findings.json` source |
+|---|---|
+| Window line | `window.start_sast`, `window.end_sast` (+ `_utc`) |
+| Quick Stats | `kpis` |
+| Portfolio Summary | `portfolio` |
+| Investigate / Monitor / No action | `findings[]` filtered by `status` (already grouped and sorted) |
+| Accounts with no findings | `accounts_without_findings` |
+| Data Quality & Methodology | `data_sources`, `data_gaps`, `checks_run` |
+| Totaliser flow table | evidence CSV of every `C12` Investigate finding |
 
 **Header** — the real Tecmo Automation / FAMS banner, plus client name and
 reporting window. The banner image ships alongside this skill at
@@ -281,25 +241,21 @@ etc.) or any other character outside that range anywhere in PDF text
 correct report so far has used. A plain hyphen `-` or true em-dash `—` is
 fine; a Unicode arrow is not.
 
-**01 Quick Stats** — six KPI cards, computed exactly as follows, never as raw
-row counts:
-- **Anomalies detected** — count of *grouped* findings with status
-  Investigate or Monitor. A device with 600 repeated identical errors is
-  ONE finding, not 600 — see grouping discipline below.
-- **Total fuel dispensed** — sum of dispensing `Volume` in the window,
-  across the whole client portfolio.
-- **Reconciliation %** — `(total_litres - unexplained_litres -
-  mismatch_litres) / total_litres`. State the numerator and denominator
-  every time. Never fold an IOT-internal-only gap into this number.
-- **Sites with possible fuel loss** — count of distinct accounts with an
-  open possible-fuel-loss finding (status Investigate specifically).
-- **Sites with communication failures** — count of distinct devices over
-  the communication-error tolerance (10 per device per window; see
-  Tolerances below) — not just devices with any errors at all.
-- **Tanks at risk of running dry** — a forward 24h/48h/72h forecast needs
-  multi-day consumption history. This is a single 48-hour check, so report
-  **0 with an explicit caveat** ("insufficient history for a run-dry
-  forecast") rather than inventing a projection from one window.
+**01 Quick Stats** — six KPI cards, straight from `kpis`:
+- **Anomalies detected** — `anomalies_detected` (grouped findings with status
+  Investigate or Monitor; a device with 600 repeated errors is ONE finding).
+- **Total fuel dispensed** — `total_fuel_dispensed_L`. This is already net of
+  duplicate rows; if `duplicate_excess_L` > 0, say underneath "after removing
+  X L of duplicate rows".
+- **Reconciliation %** — `reconciliation_pct`. State
+  `reconciliation_numerator_L` / `reconciliation_denominator_L` every time. If
+  `of_which_during_raw_feed_outage_L` > 0, say how much of the unexplained
+  volume falls inside a raw-feed outage.
+- **Sites with possible fuel loss** — `sites_with_possible_fuel_loss`.
+- **Sites with communication failures** — `sites_with_communication_failures`
+  (devices over the 10-per-window tolerance).
+- **Tanks at risk of running dry** — `tanks_at_risk_of_running_dry` (always 0)
+  with the `run_dry_caveat` text.
 
 No financial values or fuel prices appear anywhere in this report.
 
@@ -307,39 +263,40 @@ No financial values or fuel prices appear anywhere in this report.
 overall reconciliation picture, and calling out (by name) anything that
 needs attention this run, plus which sites had no findings.
 
-**03 Portfolio Summary** — a table, one row per account: Account name
-(client-name prefix auto-stripped — compute this from the actual account
-names each run, e.g. "ShipTech (PTY) LTD - Cato Ridge" → "Cato Ridge", not
-hardcoded to one client's naming convention), Dispensed (L), Recon %,
-Anomalies, Comm. Fail. Use `n/a` for Recon % on an account with zero
-dispensing volume in the window rather than a divide-by-zero or a fabricated
-percentage.
+**03 Portfolio Summary** — a table from `portfolio`: Account, Dispensed (L),
+Recon %, Anomalies, Comm. Fail. `Recon_pct` is already `n/a` for an account
+with zero dispensing volume.
 
-**04 Items for Management (Investigate)** — a table for every finding
-classified `Investigate` only: Account, Category, Affected (the litres or
-count involved), Note (what happened, possible cause using the language
-discipline below, and a recommended next step). Omit this whole section if
-there are none this run — don't render an empty table.
+**04 Items for Management (Investigate)** — a table for every finding with
+status `Investigate`: Account, Category, Affected, Note. Omit the whole
+section if there are none — don't render an empty table.
 
-**05 Monitoring Items** — findings classified `Monitor`, grouped by kind
-(e.g. "ATG telemetry noise" as a table of Account/Tank/Window; "Communication
-errors explained by near-empty tanks" as a table of Account/Device/Errors/
-Note). Add a one-line caveat under each sub-table explaining why these don't
-need action (e.g. "most coincide with normal daytime dispensing activity...
-no action required unless a specific tank is also flagged under possible fuel
-loss").
+Directly under it, if any `C12` Investigate finding exists, a sub-table
+**Totaliser flow breaks** with one row per break from the finding's evidence
+CSV, columns exactly: **Account, Macaddress, ID, TransactionID, Volume (L),
+Missing volume (L)** (`MissingVolume_L`; show "backwards" when blank). If
+there are more than 40 rows, show the 40 largest missing volumes and say
+"N more in the technical workbook".
 
-**06 No Action Required** — a short bullet list: which accounts had zero
-findings this period, the count of sites/tanks with a confirmed
-possible-fuel-loss finding (should match Quick Stats), and a line confirming
-no financial values/individuals/due dates are assigned per reporting policy.
+**05 Monitoring Items** — findings with status `Monitor`, grouped by
+`category` (e.g. "ATG telemetry noise" as a table of Account/Tank/Window;
+"Communication errors explained by near-empty tanks" as Account/Device/
+Errors/Note). Add a one-line caveat under each sub-table explaining why these
+don't need action (e.g. "most coincide with normal daytime dispensing
+activity... no action required unless a specific tank is also flagged under
+possible fuel loss").
 
-**07 Data Quality & Methodology Note** — state plainly which optional data
-sources this run actually had (e.g. `UsageDispensingAndroid`,
-`UsageTransfer`/`UsageReceiving`, `IOTData_ATG`), and for anything missing,
-say so explicitly rather than treating an unavailable source as "clean" — the
-correct posture for a missing source is "unverifiable with current data," not
-silence or a false all-clear.
+**06 No Action Required** — a short bullet list: `accounts_without_findings`,
+any `No action required` findings (known offload equipment, known benign
+outliers), the count of sites with a possible-fuel-loss finding (must match
+Quick Stats), and a line confirming no financial values/individuals/due dates
+are assigned per reporting policy.
+
+**07 Data Quality & Methodology Note** — from `data_sources`, `data_gaps` and
+`checks_run`: which sources this run had and how many rows, and for anything
+missing or any check that failed, say so explicitly — the correct posture is
+"unverifiable with current data", never silence or a false all-clear. Also
+state the window boundary used for this client.
 
 **08 Technical Appendix** — a short pointer to the companion Excel workbook
 (see below) and what's in it.
@@ -348,8 +305,8 @@ silence or a false all-clear.
 
 - **Investigate** — real discrepancy, possible fuel loss, device over
   tolerance, tank variance over tolerance, unexplained transaction, duplicate
-  affecting totals, possible manual entry, run-dry risk, or missing data that
-  blocks reconciliation.
+  affecting totals, possible manual entry, totaliser flow break, ProductID 0,
+  run-dry risk, or missing data that blocks reconciliation.
 - **Monitor** — minor/incomplete evidence, within tolerance but unusual, a
   repeated pattern that might matter later, or a data-confidence warning
   (e.g. erratic telemetry) that isn't itself a confirmed event.
@@ -357,27 +314,31 @@ silence or a false all-clear.
   event fully explained, a delayed record that arrived within grace period,
   a device at or under the error tolerance, or purely informational.
 
+The engine assigns these; don't change a finding's status in the report. If
+you disagree with one, keep it and explain why in the issue comment.
+
 Never state a due date, assigned individual, or responsible team against a
 finding — only what happened, why it matters, possible cause(s), evidence,
 and a recommended next step.
 
-### Tolerances
+### Tolerances (all in `config.json → tolerances`)
 
-- Volume/tank variance: 1% or less is acceptable (`volume_tolerance_pct`).
-- Communication errors: up to 10 per device per window is acceptable
-  (`comm_error_tolerance`). If the erroring device's tank volume is flat and
-  near-zero throughout (≤10 L, `near_empty_tank_litres`), that's a
+- Volume/tank variance: 1% (`volume_tolerance_pct`); a store variance must
+  also exceed the materiality floor (`material_loss_litres` 500 L or 5% of
+  capacity, whichever is smaller) before it is a possible loss.
+- Communication errors: up to 10 per device per window (`comm_error_tolerance`);
+  median tank volume ≤ 10 L during the errors (`near_empty_tank_litres`) is a
   near-empty-tank explanation (Monitor), not a device fault.
+- Totaliser continuity: a jump of more than 2 L between a transaction's end
+  reading and the next transaction's start on the same nozzle
+  (`totaliser_continuity_litres`).
 - A missing Operator alone is never an anomaly.
 - Zero-volume dispensing rows with no raw match are informational, not
-  anomalies — don't count their litres in the unexplained total.
-- An "unexplained" dispensing transaction on a confirmed tank-linked offload
-  `EquipmentID` (see FAMS Integrity Check's ShipTech-specific known patterns
-  above) is confirmed offloading, not a dispensing gap.
-- A `Recnumber` outside the known batch-import values is a candidate for a
+  anomalies — not counted in the unexplained total.
+- A `Recnumber` outside `recnumber_known_patterns` is a candidate for a
   possible manual entry, not automatic proof — this business has historically
-  had no manual dispensing entries, so treat an out-of-set value as worth
-  flagging, not silently accepting.
+  had no manual dispensing entries. If a legitimate new batch format appears,
+  add its pattern to config (with the owner's confirmation).
 
 ### Language discipline
 
@@ -389,10 +350,10 @@ reconciliation, etc.).
 
 ### Grouping discipline
 
-Group findings by shared site/device/tank/category/root-cause/time-window.
-Preserve every underlying record as evidence (in the technical workbook, not
-the PDF), but never surface hundreds of identical repeated errors as hundreds
-of separate management findings — that buries the one that actually matters.
+The engine already groups findings by account + category (or device / store /
+tank). Every underlying record is in the finding's evidence CSV, which goes
+into the workbook, not the PDF. Never split a grouped finding back into
+per-row findings in the PDF.
 
 Generate the PDF with the `pdfkit` npm package (pure JS, no native
 dependencies) — install once per run if not already present:
@@ -401,7 +362,7 @@ dependencies) — install once per run if not already present:
 npm install pdfkit --no-save
 ```
 
-Name each file `FAMS-Integrity-<Client>-<YYYY-MM-DD>.pdf`, e.g.
+Name each file `FAMS-Integrity-<Client>-<YYYY-MM-DD>.pdf` (date = `window.report_date`), e.g.
 `FAMS-Integrity-ShipTech-2026-09-24.pdf`, using the date the window ends.
 
 ### PDF styling — this is load-bearing, not cosmetic
@@ -488,28 +449,33 @@ font size and regenerate, rather than shipping a report with broken text.
 
 ### Companion technical workbook
 
-Alongside each client's PDF, produce one Excel workbook with five sheets,
+Alongside each client's PDF, produce one Excel workbook with these sheets,
 using the `exceljs` npm package (install once per run if not already
-present: `npm install exceljs --no-save`):
+present: `npm install exceljs --no-save`). All content comes from the
+engine's output files — copy, don't recompute:
 
-- **Portfolio Summary** — same rows/columns as the PDF's Portfolio Summary
-  table.
-- **All Findings** — every Investigate/Monitor finding, one row each, tagged
-  by account, with the full evidence (not summarized) that backs it.
-- **Dispensing Detail** — every dispensing transaction across every account
-  in the client's portfolio, with its classification (per the TypeID table
-  in FAMS Database Core) and which check (if any) flagged it.
-- **Tank Reconciliation** — opening/closing/capacity detail per tank, every
-  account.
-- **Data Gaps & Audit** — every assumption, estimate, and missing data
-  source used this run, per account — this is where "unverifiable with
-  current data" gets recorded in full rather than just mentioned in prose.
+- **Portfolio Summary** — `findings.json → portfolio` (same as the PDF table).
+- **All Findings** — one row per entry in `findings[]`: finding_id, Account,
+  Check, Status, Category, Affected, Litres, Count, Note, Evidence file.
+- **Evidence** — every finding's evidence CSV, stacked, with a leading
+  `finding_id` column (or one sheet per check if a single sheet would be
+  unreadable). This is the full record behind every finding.
+- **Totaliser Flow** — all `C12` evidence rows: Account, Macaddress, ID,
+  UsageDispensingID, TransactionID, Volume, MissingVolume_L, BreakType,
+  CreateDate, TotaliserEnd, NextID, NextTransactionID, NextTotaliserStart,
+  Gap_L, Source, NozzleKey, Explanation.
+- **Dispensing Detail** — `dispensing_detail.csv` (every window dispensing
+  row, its Classification, and `FlaggedBy`).
+- **Tank Reconciliation** — `tank_reconciliation.csv` and
+  `store_reconciliation.csv` (two tables on one sheet, or two sheets).
+- **Data Gaps & Audit** — `data_gaps.csv`, `findings.json → data_sources`,
+  `checks_run`, the window strings, and the tolerances from `config.json`.
 
-Name it `FAMS-Integrity-<Client>-Technical-<YYYY-MM-DD>.xlsx`. Don't email
-this workbook to the four recipients (see below) — attach it to the issue as
-a work product instead, and reference it by name in the PDF's Technical
-Appendix section, so it's available for deeper investigation without adding
-four more email sends per client every day.
+Name it `FAMS-Integrity-<Client>-Technical-<YYYY-MM-DD>.xlsx`, using
+`window.report_date`. Don't email this workbook to the four recipients (see
+below) — attach it to the issue as a work product instead, and reference it by
+name in the PDF's Technical Appendix section, so it's available for deeper
+investigation without adding four more email sends per client every day.
 
 ## Emailing the reports
 
@@ -556,7 +522,7 @@ werner@fams.co.za
 ```
 
 Subject line: `FAMS Integrity Report — <Client> — <YYYY-MM-DD>`. Keep the HTML
-body short — a one-line summary (e.g. "3 findings across 18 accounts, see
+body short — a one-line summary (e.g. "3 findings across 17 accounts, see
 attached") is enough; the PDF carries the detail.
 
 If any of the 12 sends fails, report the failure in the issue comment (which
@@ -566,8 +532,10 @@ didn't) as a reason to re-send to everyone — retry only the failed ones, once.
 
 ## Prohibited
 
+- Any database access that doesn't go through `scripts/fams_db.py`.
 - Any `INSERT`, `UPDATE`, `DELETE`, `ALTER`, `DROP`, or other write/DDL
-  statement. This skill is read-only, always.
+  statement, or any attempt to get a statement past the read-only guard.
 - Modifying data to make a reconciliation match.
-- Logging or echoing `FAMS_DB_Password` or the full connection string anywhere
-  a human or another system will read it back.
+- Changing a finding's numbers or status in the report.
+- Logging or echoing any `FAMS_DB_*` value or a connection string anywhere a
+  human or another system will read it back.

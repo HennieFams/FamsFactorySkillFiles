@@ -15,13 +15,24 @@ Known connection details (non-secret — safe to keep here):
 - Server: `db.fams.co.za`
 - Database: `FAMS2018`
 
-- `pyodbc` installed, ODBC Driver 18 for SQL Server available
-- Env vars, set locally by the user only — never entered into chat:
-  `FAMS_SQL_SERVER=db.fams.co.za`, `FAMS_SQL_DATABASE=FAMS2018`,
-  `FAMS_SQL_USER`, `FAMS_SQL_PASSWORD` (or `FAMS_SQL_CONN_STR`)
+- `pip install -r scripts/requirements.txt` (`pymssql` needs no OS driver;
+  `pyodbc` + ODBC Driver 18 is used instead when installed)
+- Credentials in environment variables only — never entered into chat:
+  local `FAMS_SQL_USER` / `FAMS_SQL_PASSWORD` (optionally `FAMS_SQL_SERVER`,
+  `FAMS_SQL_DATABASE`, or a full `FAMS_SQL_CONN_STR`); the Paperclip agent's
+  `FAMS_DB_HostName` / `FAMS_DB_DBName` / `FAMS_DB_UserName` /
+  `FAMS_DB_Password` are accepted too
 - Verify with `python scripts/db_connect.py --test` before querying
 
-If the driver isn't installed, the test fails, or there's no network path
+**Read-only, always.** The shared login has admin rights and a read-only login
+could not be created, so `scripts/fams_db.py` is the only path to the
+database: a lexing guard that accepts a single `SELECT`/`WITH` statement (or
+an allowlisted report proc), a transaction that is always rolled back, and
+`ApplicationIntent=ReadOnly`. `run_query.py` cannot run `UPDATE`/`DELETE`.
+When an investigation ends in a data fix, write the exact SQL (preview
+`SELECT`, explicit ID list, the write) for the human to run in SSMS.
+
+If no driver is installed, the test fails, or there's no network path
 to `db.fams.co.za` (e.g. running in claude.ai chat) — **switch to Manual /
 Paste Mode** below instead of retrying or asking for a password.
 
@@ -55,7 +66,9 @@ chat; may or may not be the case in Claude Code depending on the machine).
 | Why something looks wrong (root cause) | `knowledge/05-root-cause-analysis.md` |
 | Output format for findings | `knowledge/07-report-format.md`, `reports/` |
 | Unfamiliar term | `knowledge/glossary.md` |
-| Duplicate transactions | `algorithms/duplicate-detection.md`, `prompts/review-transactions.md` |
+| Duplicate transactions, TransactionID collisions | `algorithms/duplicate-detection.md`, `prompts/review-transactions.md` |
+| Totaliser jumps / skipped volume / "meter says more than FAMS" | `algorithms/totaliser-continuity.md`, `business-rules/nozzle-validation.md` |
+| ProductID / ProdID = 0, missing EquipmentID, truncated InformationRec | `anomaly-library/data-quality.md` |
 | Missing/bad TransactionID | `business-rules/` (validation rules), `algorithms/duplicate-detection.md` § backfill |
 | IOT vs Android vs Log mismatch, tank/ATG checks | `algorithms/atg-reconciliation.md`, `investigation/atg.md`, `investigation/devices.md`, `prompts/review-atg.md` |
 | Statistical outliers / trend checks | `algorithms/outlier-detection.md`, `algorithms/z-score.md`, `algorithms/moving-average.md`, `algorithms/seasonal-analysis.md`, `algorithms/variance-analysis.md`, `algorithms/consumption-analysis.md` |
@@ -83,10 +96,14 @@ chat; may or may not be the case in Claude Code depending on the machine).
 2. **Confirm the date window** with the user rather than assuming full history.
 3. **Load only the routing-table files relevant to the request.**
 4. **Run read-only queries first**, always, for every check.
-5. **Never execute UPDATE/DELETE** without showing the user the exact preview + ID list and getting explicit confirmation.
+5. **Never execute UPDATE/DELETE yourself** — the tooling refuses them. Hand the user the preview `SELECT`, the explicit ID list and the write statement to run in SSMS after they've reviewed it.
 6. **Report using `knowledge/07-report-format.md` / `reports/`.**
 
 ## Scripts
 
-- `scripts/db_connect.py` — connection helper, env-var based
-- `scripts/run_query.py` — CLI query runner (`--sql` or `--sql-file`, `--param KEY=VALUE`)
+- `scripts/fams_db.py` — the only DB access layer: credentials from env, read-only guard, always-rollback (kept identical to `FAMS_INTEGRITY_CHECK/scripts/fams_db.py`)
+- `scripts/db_connect.py` — `--test` the connection
+- `scripts/run_query.py` — run one read-only statement (`--sql`/`--sql-file`, `--param Name=VALUE` bound as parameters, `--csv`, `--proc` for the allowlisted SARS proc)
+- `scripts/stored-procedures/get_ReportinglogbookRev6SARS.sql` — production SARS proc, verbatim, as ground truth
+- `scripts/tests/` — guard tests (`python -m pytest -q scripts/tests`)
+- The daily automated subset of this skill is implemented as code in `FAMS_INTEGRITY_CHECK/scripts/integrity_checks.py` (checks C01–C24) — reuse it on exported data with `run_checks.py --source dir --data-dir <exports>`

@@ -109,7 +109,9 @@ tag), `Stock` (ATG tank readings), `TANK` (case-insensitive with `Tank`).
 
 ## Daily boundary
 
-06:00 SAST, not midnight. Every daily window, aggregate and reconciliation uses it.
+06:00 SAST, not midnight. Every daily window, aggregate and reconciliation uses it,
+except for the human-approved per-client exceptions listed in FAMS Core (§ Reporting
+convention) — currently RAM Couriers and PMC Phalaborwa at 00:00 SAST.
 
 ## Migration rule (§27)
 
@@ -128,6 +130,13 @@ that breaks an SSRS report is not a successful change.
 Duplicate transactions and missing `TransactionID` values are recurring FAMS data
 integrity problems. If a query result looks too high, check for duplicates before
 reporting the number.
+
+## Read-only access from agents
+
+Agents query FAMS only through `fams_db.py` (in `FAMS_INTEGRITY/scripts/` and
+`FAMS_INTEGRITY_CHECK/scripts/`): a lexing read-only guard, an always-rolled-back
+transaction, and `ApplicationIntent=ReadOnly`. The shared login has admin rights, so
+this guard is the only thing stopping a write — never bypass it.
 
 ## Prohibited
 
