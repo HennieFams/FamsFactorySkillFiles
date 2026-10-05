@@ -1120,7 +1120,8 @@ def check_transfer_receiving_atg(d, cfg):
             c = c[c["delta"] <= mwin].sort_values("delta")
             logged = float(num(pd.Series([r["Volume"]]))[0])
             base = {"Table": label, "AccountID": r.get("AccountID"), "ID": r.get("ID"),
-                    "TransactionID": r["TransactionID"], "Device": a["Device"], "Logged_L": logged}
+                    "TransactionID": r["TransactionID"], "CreateDate": r.get("CreateDate"),
+                    "Device": a["Device"], "Logged_L": logged}
             if not len(c):
                 rows.append({**base, "Result": "unverified"})
                 continue

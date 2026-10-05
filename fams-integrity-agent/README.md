@@ -11,6 +11,7 @@ installed into the Paperclip container, the same way `fams-support-agent` is.
 | `scripts/run_checks.py` | Daily engine: windows per client, data pull, checks C01–C24, writes `findings.json` + evidence CSVs |
 | `scripts/integrity_checks.py` | The checks (pure functions over DataFrames) |
 | `scripts/fams_sources.py` | Live-DB source and export-directory source |
+| `scripts/publish_notion.py` | Upserts each site's daily page in the Notion client portal (Data Integrity Reports databases) + uploads the client PDF to Azure Blob |
 | `scripts/run_query.py`, `scripts/db_connect.py` | Ad hoc read-only query runner / connection test (used by FAMS Integrity investigations) |
 | `config/config.json` | Accounts per client, boundaries, thresholds, known patterns — edit here, in git |
 | `sql/get_ReportinglogbookRev6SARS.sql` | Production SARS proc, verbatim (reference for `business-rules/sars-schedule6.md`) |
@@ -25,7 +26,7 @@ cd /data/paperclip/github-skills/FamsFactorySkillFiles && git pull
 sudo bash fams-integrity-agent/deploy/install.sh
 ```
 
-Expected ending: `python deps: OK` and `67 passed`.
+Expected ending: `python deps: OK` and all tests passed.
 
 ## 2. Connection test (inside the container)
 
@@ -49,7 +50,33 @@ Check the printed summary, then `runs/.../<Client>/findings.json`: `data_sources
 (every table should have rows), `data_gaps` (no `FAILED` entries) and `checks_run`.
 Confirm DB timestamps are SAST (`db_timezone` in config).
 
-## 4. Paperclip agent
+## 4. Notion client portal (one-off setup)
+
+1. **Switch off the old nightly job** that currently creates the "DD Mon YYYY"
+   pages in each site's Data Integrity Reports database (and uploads
+   `reconciliation-reports/<AccountID>_0_Combined_<date>.pdf`). From go-live the
+   agent is the only writer; with both running you get two pages per day.
+2. **Share with the integration:** in Notion, share *FAMS Client Portal* (or at
+   least *Shiptech (pty) ltd Portal* and *FAMS Clients*) with the internal
+   integration **FAMS Agents** with "Can edit content". The token is read from
+   `/paperclip/notion-mcp/token` (installed by `fams-notion-mcp/install.sh`).
+3. **PDF storage secret:** add a Paperclip secret `FAMS_BLOB_CONNECTION_STRING`
+   (connection string of the storage account that holds the
+   `reconciliation-reports` container) to the integrity agent. Without it pages
+   are still published, just without the PDF link.
+4. **Dry run** inside the container on an existing run folder (no network writes):
+   ```bash
+   $PY $H/scripts/publish_notion.py --run-dir $H/runs/test-2026-10-02 --client PMC-Phalaborwa --dry-run
+   ```
+   then look at `runs/test-2026-10-02/PMC-Phalaborwa/notion_preview/*.json`.
+5. **First live write on one site** (via an agent issue, so the secrets are present):
+   `publish_notion.py --run-dir … --client PMC-Phalaborwa --pdf PMC-Phalaborwa=<pdf>`,
+   then check the page in Notion before letting the full routine run.
+
+Site ↔ AccountID ↔ database mapping lives in `config/config.json → notion.sites`
+(verified 2026-10-05 from the AccountIDs in the old job's PDF links).
+
+## 5. Paperclip agent
 
 Agent instructions: `cat /paperclip/fams-integrity-agent/agent/AGENTS.md` (see
 `agent/PAPERCLIP_INSTRUCTIONS.md`). Skills to attach: FAMS Core, FAMS Database Core,

@@ -1,10 +1,8 @@
 {
   "_comment": "Daily FAMS integrity check configuration. Edit here, not in code. Every value is read by run_checks.py; see ../SKILL.md 'Configuration'.",
-
   "db_timezone": "Africa/Johannesburg",
   "window_hours": 48,
   "lookback_hours": 72,
-
   "tolerances": {
     "volume_tolerance_pct": 1.0,
     "comm_error_tolerance": 10,
@@ -25,7 +23,6 @@
     "btlinklost_outlier_min_events": 5,
     "infrec_truncation_pct": 25.0
   },
-
   "recnumber_known_patterns": [
     "^importFams$",
     "^importLog$",
@@ -33,14 +30,13 @@
     "^\\d{5}$"
   ],
   "recnumber_offload_batch_pattern": "^4627\\d+$",
-
   "clients": [
     {
       "name": "ShipTech (PTY) LTD",
       "short": "ShipTech",
       "boundary_hour_sast": 6,
       "accounts": {
-        "321": "Shiptech (Unidentified/HQ)",
+        "321": "PMB Logistics",
         "328": "Cato Ridge",
         "345": "Harrismith",
         "346": "Estcourt",
@@ -49,45 +45,163 @@
         "354": "Richards Bay",
         "360": "Kokstad",
         "361": "Port Shepstone",
-        "365": "TWK Interlink",
+        "365": "TWK Agri Underberg",
         "373": "Piet Retief",
         "378": "Nelspruit",
         "383": "Paarl",
         "389": "Lydenburg",
         "394": "Bridgeport",
-        "397": "PMB",
-        "404": "Springmeadow"
+        "397": "PMB Storage",
+        "404": "Springmeadow (Notties)"
       }
     },
     {
       "name": "RAM Couriers",
       "short": "RAM-Couriers",
       "boundary_hour_sast": 0,
-      "accounts": { "390": null, "391": null }
+      "accounts": {
+        "390": "RAM Couriers - Belville",
+        "391": "RAM Couriers - Isando"
+      }
     },
     {
       "name": "PMC Phalaborwa",
       "short": "PMC-Phalaborwa",
       "boundary_hour_sast": 0,
-      "accounts": { "285": null }
+      "accounts": {
+        "285": "PMC Phalaborwa"
+      }
     }
   ],
-
   "known_offload_equipment_ids": {
-    "328": [26409],
-    "373": [30817]
+    "328": [
+      26409
+    ],
+    "373": [
+      30817
+    ]
   },
   "pending_offload_equipment_ids": {
-    "378": [31602],
-    "365": [29307],
-    "360": [29365],
-    "397": [37571]
+    "378": [
+      31602
+    ],
+    "365": [
+      29307
+    ],
+    "360": [
+      29365
+    ],
+    "397": [
+      37571
+    ]
   },
   "known_dual_write_equipment_ids": {
-    "365": [29307],
-    "397": [37571]
+    "365": [
+      29307
+    ],
+    "397": [
+      37571
+    ]
   },
   "known_benign_outlier_equipment_ids": {
-    "394": [36941]
+    "394": [
+      36941
+    ]
+  },
+  "notion": {
+    "_comment": "Client-portal publishing (publish_notion.py). One 'Data Integrity Reports' data source per site; the agent may only write pages into these. Mapping verified 2026-10-05 from the AccountID in each site's existing report PDF links.",
+    "token_file": "/paperclip/notion-mcp/token",
+    "api_version": "2025-09-03",
+    "trend_days": 7,
+    "max_table_rows": 40,
+    "sites": {
+      "394": {
+        "site": "Shiptech - Bridge port",
+        "data_source_id": "3c775654-d68a-8174-aa9a-000b4a79da55"
+      },
+      "328": {
+        "site": "Shiptech - Cato Ridge",
+        "data_source_id": "3c775654-d68a-8166-b504-000b886e5bd3"
+      },
+      "350": {
+        "site": "Shiptech - City Deep",
+        "data_source_id": "3c775654-d68a-81e0-a546-000b658bcbf8"
+      },
+      "346": {
+        "site": "Shiptech - Estcourt",
+        "data_source_id": "3c775654-d68a-81c5-8eb6-000bbd7b142c"
+      },
+      "345": {
+        "site": "Shiptech - Harrismith",
+        "data_source_id": "3c775654-d68a-8185-9933-000b84cb0f00"
+      },
+      "360": {
+        "site": "Shiptech - Kokstad",
+        "data_source_id": "3c775654-d68a-81de-b4b4-000b751d778f"
+      },
+      "389": {
+        "site": "Shiptech - Lydenburg",
+        "data_source_id": "3c775654-d68a-8187-84ab-000b14bfd3bb"
+      },
+      "378": {
+        "site": "Shiptech - Nelspruit",
+        "data_source_id": "3c775654-d68a-81ab-a7d2-000bd90327ad"
+      },
+      "353": {
+        "site": "Shiptech - North Point",
+        "data_source_id": "3c775654-d68a-81ef-aa98-000bc547c4fe"
+      },
+      "383": {
+        "site": "Shiptech - Paarl",
+        "data_source_id": "3c775654-d68a-8190-ab2e-000b4f174c23"
+      },
+      "373": {
+        "site": "Shiptech - Piet Retief",
+        "data_source_id": "3c775654-d68a-816b-89a5-000b9d9af4ed"
+      },
+      "321": {
+        "site": "Shiptech - PMB Logistics",
+        "data_source_id": "3c775654-d68a-81b4-a5e6-000b971eafa7"
+      },
+      "397": {
+        "site": "Shiptech - PMB Storage",
+        "data_source_id": "3c775654-d68a-8185-bbb0-000b7355493a"
+      },
+      "361": {
+        "site": "Shiptech - Port Shepstone",
+        "data_source_id": "3c775654-d68a-813c-a97a-000bc3deaf7d"
+      },
+      "354": {
+        "site": "Shiptech - Richards Bay",
+        "data_source_id": "3c775654-d68a-8178-8505-000bc1b4490f"
+      },
+      "404": {
+        "site": "Shiptech - Spring medow  (Notties)",
+        "data_source_id": "3c775654-d68a-81b6-b2e0-000b1dca3ef3"
+      },
+      "365": {
+        "site": "Shiptech - TWK Agri Underburg",
+        "data_source_id": "3c775654-d68a-8122-9c47-000b98a0139c"
+      },
+      "390": {
+        "site": "RAM Couriers - Belville",
+        "data_source_id": "3c775654-d68a-813a-aa87-000bc92c7907"
+      },
+      "391": {
+        "site": "RAM Couriers - Isando",
+        "data_source_id": "3c775654-d68a-81c5-bf19-000be8af9fd9"
+      },
+      "285": {
+        "site": "PMC Phalaborwa",
+        "data_source_id": "3c775654-d68a-8151-9753-000b1679253d"
+      }
+    }
+  },
+  "pdf_upload": {
+    "_comment": "Client PDF goes to Azure Blob next to the old job's reports and is linked from every site page with a read-only SAS URL. Connection string comes from the FAMS_BLOB_CONNECTION_STRING secret.",
+    "env": "FAMS_BLOB_CONNECTION_STRING",
+    "container": "reconciliation-reports",
+    "prefix": "paperclip",
+    "link_days": 365
   }
 }

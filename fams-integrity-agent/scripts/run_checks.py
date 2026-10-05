@@ -115,6 +115,108 @@ def load(src, accts, cfg, ws, we, fetch_end, lb_start, gaps):
     return d
 
 
+TIME_COLS = ("CreateDate", "NextCreateDate", "GapStart", "GapEnd", "LastSeen", "Opening_Time", "Closing_Time")
+
+
+def day_slices(ws, we):
+    """Operational days inside the window: [(start, end), ...] in DB-local naive time."""
+    out, t = [], ws
+    while t < we:
+        out.append((t, min(t + pd.Timedelta(hours=24), we)))
+        t += pd.Timedelta(hours=24)
+    return out
+
+
+def finding_days(ev, slices):
+    """Which operational days a finding's evidence touches, and how many rows per day.
+    Findings with no timestamped evidence apply to every day of the window."""
+    labels = [s.strftime("%Y-%m-%d") for s, _ in slices]
+    if ev is None or not len(ev):
+        return labels, {}
+    stamps = [pd.to_datetime(ev[c], errors="coerce") for c in TIME_COLS if c in ev.columns]
+    if not stamps:
+        return labels, {}
+    primary = stamps[0]
+    days, rows = [], {}
+    for (s, e), lab in zip(slices, labels):
+        hit = any(((t >= s) & (t < e)).any() for t in stamps)
+        if hit:
+            days.append(lab)
+            rows[lab] = int(((primary >= s) & (primary < e)).sum())
+    return (days or labels), rows
+
+
+def build_days(d, cfg, accts, slices, disp_cls, serial, out_dir):
+    """Per account, per operational day: KPIs, tank rows and the findings that touch that day.
+    Feeds the per-site daily pages on the Notion client portal (publish_notion.py)."""
+    unexpl = {"Unexplained - no raw evidence", "Missing TransactionID (see C03)"}
+    c21 = []
+    for f in serial:
+        if f["check"] == "C21" and f["status"] == "Investigate" and f.get("evidence_file"):
+            c21.append(pd.read_csv(os.path.join(out_dir, f["evidence_file"]), parse_dates=["CreateDate"]))
+    c21 = pd.concat(c21) if c21 else pd.DataFrame(columns=["Table", "AccountID", "CreateDate", "Logged_L"])
+    dups = []
+    for f in serial:
+        if f["check"] == "C01" and f.get("evidence_file"):
+            dups.append(pd.read_csv(os.path.join(out_dir, f["evidence_file"]), parse_dates=["CreateDate"]))
+    dups = pd.concat(dups) if dups else pd.DataFrame(columns=["AccountID", "CreateDate", "Volume", "Role"])
+    out = {}
+    for a in accts:
+        out[str(a)] = []
+    for s, e in slices:
+        lab = s.strftime("%Y-%m-%d")
+        d_day = SimpleNamespace(**vars(d))
+        d_day.window_start, d_day.window_end = s, e
+        dc = disp_cls[(disp_cls["CreateDate"] >= s) & (disp_cls["CreateDate"] < e)] if len(disp_cls) else disp_cls
+        tr = safe([], "tanks per day", ic.tank_reconciliation, d_day, cfg, dc)
+        _, tanks, stores = tr if tr else ([], pd.DataFrame(), pd.DataFrame())
+        for a in accts:
+            da = dc[dc["AccountID"] == a] if len(dc) else dc
+            vol = pd.to_numeric(da["Volume"], errors="coerce").clip(lower=0) if len(da) else pd.Series(dtype=float)
+            dd = dups[(dups["AccountID"] == a) & (dups["Role"] == "duplicate") &
+                      (dups["CreateDate"] >= s) & (dups["CreateDate"] < e)]
+            total = float(vol.sum()) - float(pd.to_numeric(dd["Volume"], errors="coerce").sum())
+            bad = float(vol[da["Classification"].isin(unexpl | {"Volume mismatch"})].sum()) if len(da) else 0.0
+            recon = round((total - bad) / total * 100, 2) if total > 0 else None
+
+            def movement(tbl, label):
+                w = d.__dict__.get(tbl)
+                if w is None or not len(w) or "AccountID" not in w.columns:
+                    return 0.0, 0, None
+                w = w[(w["AccountID"] == a) & (w["CreateDate"] >= s) & (w["CreateDate"] < e)]
+                v = float(pd.to_numeric(w.get("Volume", pd.Series(dtype=float)), errors="coerce").abs().sum())
+                mm = c21[(c21["Table"] == label) & (c21["AccountID"] == a) &
+                         (c21["CreateDate"] >= s) & (c21["CreateDate"] < e)]
+                mmv = float(pd.to_numeric(mm["Logged_L"], errors="coerce").abs().sum())
+                return round(v, 2), int(len(w)), (round((v - mmv) / v * 100, 2) if v > 0 else None)
+
+            xv, xn, xp = movement("transfer", "UsageTransfer")
+            rv, rn, rp = movement("receiving", "UsageReceiving")
+            st = stores[stores["AccountID"] == a] if len(stores) else stores
+            atg = None
+            if len(st):
+                dec = float(st["TankDecline_L"].sum())
+                out_l = float(st["Dispensed_L"].sum() + st["TransferredOut_L"].sum())
+                base = max(dec, out_l)
+                atg = round(100 - min(100.0, abs(dec - out_l) / base * 100), 2) if base > 0 else 100.0
+            tk = tanks[tanks["AccountID"] == a] if len(tanks) else tanks
+            fs = [f for f in serial if f["account_id"] == a and lab in f.get("days", [])]
+            out[str(a)].append({
+                "date": lab, "start": str(s), "end": str(e),
+                "dispensed_L": round(total, 2), "usage_pct": recon,
+                "transfer_L": xv, "transfer_txn": xn, "transfer_pct": xp,
+                "receiving_L": rv, "receiving_txn": rn, "receiving_pct": rp,
+                "atg_pct": atg,
+                "investigate": sum(1 for f in fs if f["status"] == "Investigate"),
+                "monitor": sum(1 for f in fs if f["status"] == "Monitor"),
+                "possible_fuel_loss": sum(1 for f in fs if f["check"] == "C18" and f["status"] == "Investigate"),
+                "comm_failures": len({f.get("device") for f in fs if f["check"] == "C20"}),
+                "finding_ids": [f["finding_id"] for f in fs],
+                "tanks": json.loads(tk.to_json(orient="records", date_format="iso")) if len(tk) else [],
+            })
+    return out
+
+
 def run_client(src, client, cfg, run_time_sast, out_root):
     db_tz = ZoneInfo(cfg.get("db_timezone", "Africa/Johannesburg"))
     accts = [int(a) for a in client["accounts"]]
@@ -212,9 +314,11 @@ def run_client(src, client, cfg, run_time_sast, out_root):
     os.makedirs(ev_dir, exist_ok=True)
     order = {s: i for i, s in enumerate(STATUSES)}
     findings.sort(key=lambda f: (order[f["status"]], f["account_id"] or 0, f["check"]))
+    slices = day_slices(ws, we)
     serial = []
     for n, f in enumerate(findings, start=1):
         ev = f.pop("evidence")
+        f["days"], f["day_rows"] = finding_days(ev, slices)
         f["finding_id"] = f"{client['short']}-{n:03d}"
         f["account"] = names.get(f["account_id"], "") if f["account_id"] else ""
         if ev is not None and len(ev):
@@ -237,6 +341,7 @@ def run_client(src, client, cfg, run_time_sast, out_root):
         disp_cls = disp_cls.assign(FlaggedBy=disp_cls["ID"].astype(str).map(lambda i: "; ".join(flagged.get(i, []))))
         drop = [c for c in ("InformationRec",) if c in disp_cls.columns]
         disp_cls.drop(columns=drop).to_csv(os.path.join(out_dir, "dispensing_detail.csv"), index=False)
+    days = safe(gaps, "per-day site metrics", build_days, d, cfg, accts, slices, disp_cls, serial, out_dir) or {}
     tanks_df.to_csv(os.path.join(out_dir, "tank_reconciliation.csv"), index=False)
     stores_df.to_csv(os.path.join(out_dir, "store_reconciliation.csv"), index=False)
     pd.DataFrame(gaps, columns=["scope", "gap", "effect"]).to_csv(os.path.join(out_dir, "data_gaps.csv"), index=False)
@@ -256,6 +361,7 @@ def run_client(src, client, cfg, run_time_sast, out_root):
         "accounts": [{"AccountID": a, "Account": names[a]} for a in accts],
         "kpis": kpis,
         "portfolio": portfolio,
+        "days": days,
         "findings": serial,
         "accounts_without_findings": [names[a] for a in accts
                                       if not any(f["account_id"] == a and f["status"] != "No action required" for f in serial)],

@@ -278,3 +278,19 @@ def test_every_db_statement_passes_the_read_only_guard(tmp_path):
     assert len(seen) > 15
     assert any("TempTableDataJson" in s for s in seen) and any("LEFT JOIN Allocation" in s for s in seen)
     assert not [g for g in doc["data_gaps"] if "FAILED" in g["gap"]], doc["data_gaps"]
+
+
+def test_per_day_site_metrics(result):
+    doc, _ = result
+    days = doc["days"][str(ACC)]
+    assert [x["date"] for x in days] == ["2026-09-30", "2026-10-01"]
+    assert all(x["start"].endswith("06:00:00") for x in days)
+    total = sum(x["dispensed_L"] for x in days)
+    assert total == pytest.approx(doc["kpis"]["total_fuel_dispensed_L"])
+    # the totaliser break (TXA03 at T(6)) is on day 1 only; the IOT break (T(32)) on day 2
+    tot = [f for f in doc["findings"] if f["check"] == "C12" and f["status"] == "Investigate"][0]
+    assert tot["days"] == ["2026-09-30", "2026-10-01"] and tot["day_rows"] == {"2026-09-30": 1, "2026-10-01": 1}
+    assert all(tot["finding_id"] in x["finding_ids"] for x in days)
+    assert days[0]["tanks"] and days[0]["atg_pct"] is not None
+    quiet = doc["days"]["9002"]
+    assert quiet[0]["usage_pct"] is None and quiet[0]["dispensed_L"] == 0

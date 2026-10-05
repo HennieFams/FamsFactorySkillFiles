@@ -39,7 +39,13 @@ on the VM at `H=/paperclip/fams-integrity-agent` with its own Python
    Reporting). Do not recompute any number, do not re-query the database to
    "improve" a figure, and do not add findings the engine did not produce. If
    you think something is missing, say so in the issue comment.
-4. Email the PDFs (see Emailing) and attach PDFs + workbooks to the issue.
+4. Email the PDFs (see Emailing).
+5. Update the client portal in Notion (see Publishing to the client portal):
+   `$PY $H/scripts/publish_notion.py --run-dir $H/runs/$(date +%F) --pdf ShipTech=<pdf> --pdf RAM-Couriers=<pdf> --pdf PMC-Phalaborwa=<pdf>`.
+   A publishing failure never blocks or undoes the email; report it.
+6. Attach PDFs + workbooks to the issue and comment: windows, Investigate /
+   Monitor counts, email results, and the `publish_notion.py` summary
+   (pages created / updated / failed, warnings). Then close the issue.
 
 The engine is deterministic and unit-tested
 (`$PY -m pytest -q $H/tests`, which also covers the read-only guard).
@@ -481,6 +487,54 @@ below) — attach it to the issue as a work product instead, and reference it by
 name in the PDF's Technical Appendix section, so it's available for deeper
 investigation without adding four more email sends per client every day.
 
+## Publishing to the client portal (Notion)
+
+Every run also writes the results into the clients' Notion portal. This
+replaces the old nightly job that created these pages (switched off when the
+agent went live) — the agent is now the only writer.
+
+| Client | Where the pages go |
+|---|---|
+| ShipTech | FAMS Client Portal > Shiptech (pty) ltd Portal > Sites > *one page per site* > **Data Integrity Reports** |
+| RAM Couriers, PMC Phalaborwa | FAMS Client Portal > FAMS Clients > Sites > *site page* > **Data Integrity Reports** |
+
+AccountID → site → database is fixed in the pack's `config/config.json`
+(`notion.sites`, 20 sites). `publish_notion.py` does all of it from
+`findings.json`; don't hand-edit pages or use the Notion MCP tools to write
+these pages.
+
+- **One page per site per operational day.** A 48-hour run covers two days,
+  so it upserts two pages per site, named "DD Mon YYYY" with the `Date`
+  property set. The next day's run rewrites the older of the two with fresher
+  data. A page is found by its `Date`; the script updates it in place and
+  never creates a second page for the same date.
+- **Properties:** Status (`Clean` when the site-day has no Investigate or
+  Monitor findings, otherwise `Issues Found`), Usage % (that day's
+  reconciliation %), Transfer % / Receiving % (logged volume not contradicted
+  by ATG telemetry), ATG % (tank decline vs dispensed + transferred), each
+  blank when not applicable.
+- **Body**, same layout as before: KPI table, last-7-days trend (read from the
+  previous pages), Investigate table, **Totaliser flow breaks** (Macaddress,
+  ID, TransactionID, Volume, Missing volume), Monitor table, tanks,
+  reconciliation line, one "⚠️" section per Investigate finding with its
+  evidence rows for that day, No action required, data-quality note, and the
+  PDF link.
+- **PDF:** the client's PDF is uploaded to Azure Blob
+  (`reconciliation-reports/paperclip/<Client>/…`, secret
+  `FAMS_BLOB_CONNECTION_STRING`) and linked with a read-only link valid for
+  `pdf_upload.link_days` (365). If the secret is missing or the upload fails,
+  pages are still published, without the link, and the run says so.
+- **Client-facing.** These portals are read by the client: the page carries
+  the same language discipline as the PDF (possible cause, unconfirmed until
+  field-verified, no prices, no names, no due dates).
+- **Safety:** the script writes only into the 20 configured databases, never
+  deletes or moves a page, and on an update only replaces that page's own
+  content. If two pages exist for one date it updates the oldest and warns —
+  leave the extra page for a human to archive.
+- Check before go-live with `--dry-run` (writes the page JSON to
+  `<Client>/notion_preview/`, no network). `publish_log.json` in each client
+  folder lists every page created / updated / failed with its URL.
+
 ## Emailing the reports
 
 After generating all three PDFs, email each one separately using the internal
@@ -540,6 +594,8 @@ didn't) as a reason to re-send to everyone — retry only the failed ones, once.
 - Any `INSERT`, `UPDATE`, `DELETE`, `ALTER`, `DROP`, or other write/DDL
   statement, or any attempt to get a statement past the read-only guard.
 - Modifying data to make a reconciliation match.
-- Changing a finding's numbers or status in the report.
+- Changing a finding's numbers or status in the report or on Notion.
+- Writing to Notion other than through `publish_notion.py`, deleting or
+  moving any Notion page, or writing outside the configured databases.
 - Logging or echoing any `FAMS_DB_*` value or a connection string anywhere a
   human or another system will read it back.
