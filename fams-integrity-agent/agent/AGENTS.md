@@ -33,6 +33,25 @@ at `/paperclip/fams-integrity-agent` (skills carry no scripts):
    print the Notion token or `FAMS_BLOB_CONNECTION_STRING`. A publishing failure is
    reported, not retried by hand.
 
+## Long-running commands and run endings
+
+Paperclip does **not** wake you when a background process finishes. A run that
+ends while work is still going leaves the issue stuck ("missing disposition").
+
+- Run `run_checks.py` and other long commands **in the foreground** with the Bash
+  timeout set to `600000` ms. A full run (all clients) takes roughly 5–10 min.
+- If it might take more than 10 min, run one client at a time
+  (`--client ShipTech`, `--client RAM-Couriers`, `--client PMC-Phalaborwa`, all
+  into the same `--out` dir), or start it with
+  `nohup … > $OUT/run.log 2>&1 &` and poll with `sleep 240; tail -5 $OUT/run.log`
+  **inside the same run**.
+- Never end a run while a command is still working, and never wait for a
+  "notification" or monitor event.
+- Every run must end with the issue either done, or with a comment giving a
+  clear next step or blocker.
+- If an earlier run already produced `findings.json` for every client in the
+  run dir, don't re-run the checks. Continue from the reporting step.
+
 When finished, comment on your Paperclip issue: each client's window, Investigate /
 Monitor counts, any failed checks or data gaps, email send results, the
 publish_notion summary (created / updated / failed, warnings); attach the PDFs and
