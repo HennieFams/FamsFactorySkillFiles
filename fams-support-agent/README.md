@@ -35,6 +35,7 @@ Anything weaker, or anything that needs this customer's own data checked → do 
 | `scripts/sync_blob.py` | Mirror the JSON/CSV exports from Blob (only changed files), then rebuild index |
 | `scripts/build_index.py` | Exports → SQLite FTS5 index of resolved tickets + agents' public replies |
 | `scripts/search_similar.py` | Ranked similar tickets + clusters of agreeing resolutions (JSON) |
+| `scripts/notion_sync.py` | Read-only copy of the Notion knowledge base (Approved entries, known fixes, guidance) — section 3b |
 | `scripts/ledger.py` | Claim/mark processed tickets; stops duplicates |
 | `scripts/send_email.py` | Sends via the FAMS SendGrid proxy (or dryrun) with a recipient allow-list |
 | `config/column_map.json` | Export format settings (Freshdesk JSON default; CSV optional) |
@@ -102,6 +103,7 @@ sudo bash deploy/set_config.sh
 | Freshdesk API key | Freshdesk → profile picture → Profile settings → *Your API Key* |
 | Blob SAS URL | Storage account → Containers → `ticketingfolder` → *Shared access tokens*, **Read + List**, HTTPS only, 12 months → *Blob SAS URL* |
 | SendGrid proxy base URL | the api24 SendGrid base, `https://…/api/SendGrid` (unauthenticated — never commit it) |
+| Notion integration token | see section 3b (optional until the knowledge base is connected) |
 | Email mode | `dryrun` for now |
 | Start time | now, in UTC — older tickets are ignored |
 
@@ -156,6 +158,38 @@ reusable fix (e.g. the OWW/Limesale bowser battery explanation, changing vehicle
 and setting DWN). The agent is built to stay quiet on the rest, so at first expect it to email
 Schalk on a minority of tickets. That share grows as agents write the actual fix into their
 replies.
+
+## 3b. Notion knowledge base (FAMS Workspace Portal → FAMS Support)
+
+The support team writes solved cases in Notion; the agent learns from the **Approved** ones.
+`scripts/notion_sync.py` (read-only) copies three things:
+
+| Notion | Becomes | Used for |
+|---|---|---|
+| **Support Knowledge Base** (Status = Approved) | `data/raw/notion/ticket_KB-<n>.json`, indexed with the history as ticket id `KB-<n>` | similar-case search — an approved entry is strong evidence (see SKILL.md table) |
+| **Known Fixes Playbook** (Status = Approved) | `data/notion/known_fixes_notion.md` | playbook matches; same code as `known_fixes.md` → Notion wins |
+| page section **Support guidance** | `data/notion/guidance.md` | rules applied to every proposed answer |
+
+Draft, Retired, and the guide's `EXAMPLE …` entry are ignored; a retired entry disappears from
+the index on the next sync. Credentials are redacted the same way as ticket history.
+
+**Connect it once:**
+1. notion.so/profile/integrations → **New integration** → *Internal*, name "FAMS Support Agent",
+   workspace FAMS, capabilities **Read content only** → copy the token (`ntn_…`).
+2. Open the **FAMS Support** page → `•••` → **Connections** → add "FAMS Support Agent"
+   (this gives it the page and both databases, nothing else).
+3. On the VM: `sudo bash deploy/set_config.sh` → paste the token at the Notion prompt
+   (Enter for everything else).
+4. Test in the container shell:
+```bash
+H=/paperclip/fams-support-agent; $H/.venv/bin/python $H/scripts/notion_sync.py
+# {"notion": "ok", "kb_entries": 0, "known_fixes": 0, "guidance_points": 4, ...}
+```
+`kb_entries`/`known_fixes` stay 0 until entries are set to **Approved**.
+
+It runs at the start of every triage run (skipped if the last sync is < 60 min old) and in the
+nightly refresh routine. The database/page ids are built in; override them in `agent.env`
+(`NOTION_KB_DATABASE_ID`, `NOTION_FIXES_DATABASE_ID`, `NOTION_SUPPORT_PAGE_ID`) if the pages move.
 
 ## 4. Create the agent in Paperclip
 

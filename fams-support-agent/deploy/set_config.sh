@@ -18,8 +18,13 @@ echo "Leave blank to keep the current value."
 ask FRESHDESK_API_KEY            "Freshdesk API key" 1
 ask AZURE_BLOB_CONTAINER_SAS_URL "Blob SAS URL" 1
 ask SENDGRID_PROXY_BASE          "SendGrid proxy base URL (…/api/SendGrid)" 1
+ask NOTION_API_KEY               "Notion integration token (ntn_…)" 1
 ask SUPPORT_EMAIL_MODE           "Email mode [dryrun|fams_proxy]" 0
 ask SUPPORT_AGENT_START_AT       "Ignore tickets created before (UTC, e.g. 2026-10-01T12:00:00Z)" 0
+# Recipients: one comma-separated list sets both who gets the drafts and the allow-list
+read -r -p "Reviewer email(s), comma-separated (e.g. schalk@fams.co.za,hennie@fams.co.za): " R
+R=$(printf '%s' "$R" | tr -d ' ')
+[ -n "$R" ] && ARGS+=("SUPPORT_REVIEWER_EMAIL=$R" "SUPPORT_EMAIL_ALLOWED_TO=$R")
 
 # pass values through stdin so they never appear in the process list
 printf '%s\n' "${ARGS[@]+"${ARGS[@]}"}" | docker exec -i "$C" "$PY" -c '
