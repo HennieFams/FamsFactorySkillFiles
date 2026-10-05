@@ -13,7 +13,8 @@
       "WebFetch",
       "WebSearch",
       "Read(/paperclip/fams-support-agent/config/agent.env)",
-      "Bash(cat:*agent.env*)"
+      "Bash(cat:*agent.env*)",
+      "mcp__notion"
     ]
   }
 }
