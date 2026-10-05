@@ -64,7 +64,7 @@ Confirm DB timestamps are SAST (`db_timezone` in config).
    (connection string of the storage account that holds the
    `reconciliation-reports` container) to the integrity agent. Without it pages
    are still published, just without the PDF link.
-4. **Dry run** inside the container on an existing run folder (no network writes):
+4. **Dry run** inside the container on a run folder produced by this version (older runs have no per-day data), no network writes:
    ```bash
    $PY $H/scripts/publish_notion.py --run-dir $H/runs/test-2026-10-02 --client PMC-Phalaborwa --dry-run
    ```
