@@ -89,7 +89,11 @@ docker exec -u 0 -e H="$H" -e AU="$AGENT_USER" -e AG="$AGENT_GROUP" "$C" sh -euc
   done
   chmod 755 "$H/scripts/git-askpass.sh" "$H/scripts/devops.mjs"
   chown -R "$AU:$AG" "$H/workspace" "$H/secrets"
-  chown root:root "$H/workspace/.claude" "$H/workspace/.claude/settings.json"; chmod 755 "$H/workspace/.claude"; chmod 644 "$H/workspace/.claude/settings.json"
+  # .claude: Paperclip writes settings.local.json there as the agent user, so the folder
+  # must be writable by the agent group; the sticky bit (1775) stops them deleting or
+  # replacing the root-owned settings.json (the deny rules).
+  chown root:"$AG" "$H/workspace/.claude"; chmod 1775 "$H/workspace/.claude"
+  chown root:root "$H/workspace/.claude/settings.json"; chmod 644 "$H/workspace/.claude/settings.json"
   chmod 700 "$H/secrets"; [ -f "$H/secrets/devops.pat" ] && chmod 600 "$H/secrets/devops.pat" || true
 '
 
