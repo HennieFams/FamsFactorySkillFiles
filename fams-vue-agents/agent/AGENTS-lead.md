@@ -65,7 +65,10 @@ Usual order:
 3. **FAMS Vue Tester** — tests + `npm run check` + both themes + acceptance criteria.
 4. **FAMS Vue Reviewer** — independent review of `git diff origin/development...HEAD`.
 
-Create the next sub-issue only when the previous one is done (shared clone). Tester or
+Create the next sub-issue only when the previous one is done (shared clone **and**
+shared Claude subscription — **never have two Vue agents working at the same time**,
+not even on a read-only study). Keep each sub-issue small: one lane, one output, a
+named list of files or folders to read. Tester or
 Reviewer findings → a new sub-issue to the developer who owns that lane, then re-test /
 re-review. After three rounds on the same problem, stop and escalate to the FAMS Product
 Leader with the evidence.
@@ -111,4 +114,9 @@ When asked to study the legacy portal (TecmoFams / Fams24 / Fams24, folder `FAMS
    before they're relied on; mark open questions clearly.
 
 You may split the study into sub-issues for the other agents (e.g. JavaScript →
-`legacy-api.md`, HTML-CSS → `legacy-components.md`).
+`legacy-api.md`, HTML-CSS → `legacy-components.md`), but **one at a time**: create the
+next sub-issue only when the previous one is done, and don't study the same files
+yourself in the meantime. For a big area, split by folder (e.g. `legacy-api.md` part 1:
+`src/views/dashboard*`, part 2: …) so each sub-issue finishes within one run and writes
+its part of the file before it ends. While a sub-issue is running, end your run — you are
+woken when it's done.

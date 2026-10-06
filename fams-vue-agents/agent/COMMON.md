@@ -15,19 +15,28 @@ Everyone reports to the FAMS Vue Lead; the Lead reports to the FAMS Product Lead
 agent). Other agents and humans ask for UI work by creating a Paperclip issue assigned to
 the **FAMS Vue Lead**.
 
-## Read first, every run
+## Read first, every run — but read lean
+
+All five agents share **one Claude subscription** with the other FAMS agents. Every
+line you read is paid for, and when the limit is hit *every* agent stops. Read only
+what the task needs.
 
 1. This file, then your own instructions file (named in your Paperclip instructions).
-2. Your attached skills. Always: **FAMS Core**, **fams-ui-standards** (wins over the
-   other Vue skills where they conflict), **fams-portal-developer**. Plus the ones your
-   own file lists.
+2. **Skills load on demand — don't read them cover to cover.** Your attached skills
+   (FAMS Core, fams-ui-standards, fams-portal-developer, plus your own list) are there
+   when you need them. fams-ui-standards wins over the other Vue skills; FAMS Core wins
+   over everything. When a task needs a skill, find the section first and read only
+   that:
+   `grep -n '^#' /paperclip/fams-vue-agents/skills/<skill>/SKILL.md` →
+   `sed -n '<from>,<to>p' …`. fams-portal-master is 1,800 lines — never read it whole.
 3. Full copies of all Vue skills (including `fams-dispensing/reference/*` and the
    integration index/archive under `docs/`) are on disk at
    `/paperclip/fams-vue-agents/skills/`. `FAMS_API_CORE-v2.md` does not exist — don't
    look for it.
-4. Notes from earlier work (legacy study, decisions) are in
-   `/paperclip/fams-vue-agents/workspace/knowledge/`. Read `knowledge/INDEX.md` if it
-   exists.
+4. Notes from earlier work are in `/paperclip/fams-vue-agents/workspace/knowledge/`.
+   Read `knowledge/INDEX.md` first, then only the knowledge file (and section) you need.
+5. If `workspace/notes/<issue-key>.md` exists, you were here before: read it and
+   continue from it instead of starting over.
 
 Never web-search for FAMS facts — they are only in the skills, the knowledge folder and
 the repos. You may read public library docs (vuejs.org, primevue.org, tailwindcss.com,
@@ -63,6 +72,30 @@ vitejs.dev, pinia.vuejs.org) with WebFetch when you need API details.
   `NODE_ENV=production`, so plain `npm ci` skips lint/test/build tools), `npm run dev`, `npm run lint`,
   `npm run test`, `npm run build`, `npm run budget`, `npm run check`.
 - New projects start from `/paperclip/fams-vue-agents/templates/vue3-starter`.
+
+## Token budget (shared subscription)
+
+- **No sub-agents.** Don't use the Task/Agent tool or ask for "batches" run in
+  parallel — it's blocked, and it multiplies usage. Do the work yourself, in order.
+- **Search, don't browse.** Find things with `git grep -n '<pattern>' -- <folder>` or
+  `rg -n '<pattern>' <folder>` and read only the lines around a hit:
+  `sed -n '<from>,<to>p' <file>` in windows of ≤ 150 lines. Never `cat` a file over 200
+  lines (`wc -l` first). Never list a repo recursively — use
+  `git ls-files <folder> | head -200` or `git ls-files <folder> | wc -l`.
+- **Skip noise:** `node_modules/`, `dist/`, `public/`, `graphify-out/`, `*.min.*`,
+  `*.map`, `package-lock.json`, images, fonts and generated JSON. Add
+  `-- ':!*.min.js' ':!*package-lock.json'` (git grep) or `--glob '!…'` (rg).
+- **Cap output:** pipe anything that could be long through `| head -100`; count first
+  (`| wc -l`) when unsure. Don't re-read a file you already read in this run.
+- **Save as you go.** Write findings into the target file (knowledge file, code, report)
+  section by section, and keep `workspace/notes/<issue-key>.md` up to date (≤ 20 lines:
+  done / next / open questions). If the run stops on a usage limit, the next run picks up
+  from there instead of re-reading everything.
+- **Never wait inside a run.** If you're waiting for another agent or a human, comment
+  what you're waiting for and end the run — Paperclip wakes you when the issue changes.
+  Don't poll, sleep, or post "still waiting" comments.
+- **Tests:** while iterating run only the test file you're working on
+  (`npx vitest run tests/<file>`); the full `npm run check` runs once at the end.
 
 ## Hard rules
 

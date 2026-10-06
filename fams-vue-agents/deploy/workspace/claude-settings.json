@@ -1,7 +1,8 @@
 {
   "env": {
     "FAMS_VUE_HOME": "/paperclip/fams-vue-agents",
-    "npm_config_include": "dev"
+    "npm_config_include": "dev",
+    "BASH_MAX_OUTPUT_LENGTH": "20000"
   },
   "permissions": {
     "deny": [
@@ -26,7 +27,10 @@
       "Write(//paperclip/fams-vue-agents/agent/**)",
       "Write(//paperclip/fams-vue-agents/workspace/.claude/**)",
       "Write(//paperclip/fams-vue-agents/workspace/repos/*/.git/**)",
-      "mcp__notion"
+      "mcp__notion",
+      "Task",
+      "Agent",
+      "WebSearch"
     ]
   }
 }
