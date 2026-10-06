@@ -1,3 +1,5 @@
+// @vitest-environment node
+// (lint tests run in Node: with NODE_ENV=production a jsdom environment resolves node:fs to a browser stub)
 import { describe, it, expect } from 'vitest';
 import { ESLint } from 'eslint';
 import { readFileSync } from 'node:fs';
