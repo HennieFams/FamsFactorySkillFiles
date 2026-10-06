@@ -14,7 +14,7 @@
     "noise_stdev_litres": 1000,
     "delivery_jump_litres": 3500,
     "telemetry_gap_minutes": 60,
-    "raw_feed_silence_minutes": 30,
+    "backup_feed_silence_minutes": 30,
     "decode_grace_minutes": 30,
     "transfer_atg_match_minutes": 15,
     "duplicate_near_time_seconds": 120,

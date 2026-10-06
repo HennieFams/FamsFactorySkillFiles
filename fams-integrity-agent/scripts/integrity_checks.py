@@ -347,7 +347,7 @@ def classify_dispensing(d, cfg):
     """Returns (window dispensing rows with Classification, findings)."""
     out = []
     tol = cfg["tolerances"]["volume_tolerance_pct"]
-    silence_min = cfg["tolerances"]["raw_feed_silence_minutes"]
+    silence_min = cfg["tolerances"]["backup_feed_silence_minutes"]
     w = in_window(d.disp, d)
     if empty(w):
         return (w if w is not None else pd.DataFrame()), out

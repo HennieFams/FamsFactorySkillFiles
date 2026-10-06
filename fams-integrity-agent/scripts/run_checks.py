@@ -292,7 +292,7 @@ def run_client(src, client, cfg, run_time_sast, out_root):
             "reconciliation_pct": None if recon is None else round(recon, 2),
             "reconciliation_numerator_L": round(total - unexpl - mism, 2),
             "reconciliation_denominator_L": round(total, 2),
-            "unexplained_L": round(unexpl, 2), "of_which_during_raw_feed_outage_L": round(outage, 2),
+            "unexplained_L": round(unexpl, 2), "of_which_during_backup_feed_outage_L": round(outage, 2),
             "mismatch_L": round(mism, 2),
             "sites_with_possible_fuel_loss": len({f["account_id"] for f in fs if f["check"] == "C18" and f["status"] == "Investigate"}),
             "sites_with_communication_failures": len({(f["account_id"], f.get("device")) for f in fs if f["check"] == "C20"}),

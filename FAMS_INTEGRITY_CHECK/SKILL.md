@@ -260,7 +260,7 @@ fine; a Unicode arrow is not.
   X L of duplicate rows".
 - **Reconciliation %** — `reconciliation_pct`. State
   `reconciliation_numerator_L` / `reconciliation_denominator_L` every time. If
-  `of_which_during_raw_feed_outage_L` > 0, say how much of the unexplained
+  `of_which_during_backup_feed_outage_L` > 0, say how much of the unexplained
   volume falls inside a backup-feed outage (IOT and Android both silent).
 - **Sites with possible fuel loss** — `sites_with_possible_fuel_loss`.
 - **Sites with communication failures** — `sites_with_communication_failures`
