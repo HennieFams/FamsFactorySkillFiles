@@ -1,0 +1,28 @@
+{
+  "_comment": "FAMS Vue Agents configuration. Edit in git, then re-run deploy/install.sh. Read by scripts/devops.mjs.",
+  "devops": {
+    "organization": "TecmoFams",
+    "base_url": "https://dev.azure.com",
+    "git_username": "fams-agents",
+    "token_file": "/paperclip/fams-vue-agents/secrets/devops.pat",
+    "api_version": "7.1"
+  },
+  "git": {
+    "author_name": "FAMS Vue Agents",
+    "author_email": "fams-agents@fams.co.za",
+    "branch_prefix": "agents/",
+    "protected_branches": ["main", "master", "develop", "dev", "release/*", "hotfix/*"],
+    "default_target_branch": "main"
+  },
+  "workspace": "/paperclip/fams-vue-agents/workspace",
+  "legacy": {
+    "_comment": "Legacy Vue 2 portal - study reference (fams-ui-standards §5).",
+    "project": "Fams24",
+    "repo": "Fams24",
+    "path": "FAMS-UI"
+  },
+  "projects": {
+    "_comment": "Filled in by a human as projects are agreed: name -> {project, repo, path}. The Vue Lead asks before any new entry is used.",
+    "example-do-not-use": { "project": "Fams24", "repo": "FAMS-Portal", "path": "" }
+  }
+}

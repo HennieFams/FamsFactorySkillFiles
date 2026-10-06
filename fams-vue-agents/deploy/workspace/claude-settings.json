@@ -1,0 +1,33 @@
+{
+  "env": {
+    "FAMS_VUE_HOME": "/paperclip/fams-vue-agents"
+  },
+  "permissions": {
+    "deny": [
+      "Bash(git push:*)",
+      "Bash(git commit:*)",
+      "Bash(git remote:*)",
+      "Bash(git config:*)",
+      "Bash(git credential:*)",
+      "Bash(git tag:*)",
+      "Bash(git -C:*)",
+      "Bash(git -c:*)",
+      "Bash(curl:*)",
+      "Bash(wget:*)",
+      "Read(//paperclip/fams-vue-agents/secrets/**)",
+      "Edit(//paperclip/fams-vue-agents/secrets/**)",
+      "Edit(//paperclip/fams-vue-agents/scripts/**)",
+      "Edit(//paperclip/fams-vue-agents/config/**)",
+      "Edit(//paperclip/fams-vue-agents/agent/**)",
+      "Edit(//paperclip/fams-vue-agents/workspace/.claude/**)",
+      "Edit(//paperclip/fams-vue-agents/workspace/repos/*/.git/**)",
+      "Write(//paperclip/fams-vue-agents/secrets/**)",
+      "Write(//paperclip/fams-vue-agents/scripts/**)",
+      "Write(//paperclip/fams-vue-agents/config/**)",
+      "Write(//paperclip/fams-vue-agents/agent/**)",
+      "Write(//paperclip/fams-vue-agents/workspace/.claude/**)",
+      "Write(//paperclip/fams-vue-agents/workspace/repos/*/.git/**)",
+      "mcp__notion"
+    ]
+  }
+}

@@ -1,0 +1,40 @@
+/* fams-ui-standards §1 - Tailwind 4 theme. The default Tailwind palette is REMOVED,
+   so only fams-* colours exist (bg-fams-orange, text-fams-charcoal, border-fams-fog ...). */
+@layer theme, base, primevue, components, utilities;
+@import "tailwindcss";
+@plugin "tailwindcss-primeui";
+@custom-variant dark (&:where(.app-dark, .app-dark *));
+
+@theme {
+  --color-*: initial;
+  --color-transparent: transparent;
+  --color-current: currentColor;
+  --color-white: #FFFFFF;
+  --color-fams-charcoal: #30383D;
+  --color-fams-graphite: #3C4449;
+  --color-fams-steel: #737B80;
+  --color-fams-fog: #D9DADB;
+  --color-fams-paper: #F3F3F1;
+  --color-fams-orange: #F47A20;
+  --color-fams-orange-deep: #C95614;
+  --color-fams-orange-glow: #FF8A2A;
+  --color-fams-amber: #F2A541;
+
+  --font-heading: "Oswald", "Arial Narrow", sans-serif;
+  --font-body: "Roboto Condensed", "Arial Narrow", sans-serif;
+}
+
+@layer base {
+  html { font-family: var(--font-body); }
+  body { @apply bg-fams-paper text-fams-charcoal antialiased; }
+  .app-dark body { @apply bg-fams-charcoal text-fams-paper; }
+  h1, h2, h3, h4, .fams-heading { font-family: var(--font-heading); letter-spacing: 0.01em; }
+}
+
+@layer components {
+  /* "01 / INTRODUCTION" style eyebrow label above headings */
+  .fams-eyebrow { @apply text-xs font-semibold uppercase tracking-[0.2em] text-fams-orange; }
+  .fams-panel { @apply rounded-md border border-fams-fog bg-white; }
+  .app-dark .fams-panel { @apply border-fams-steel bg-fams-graphite; }
+  .fams-panel-highlight { @apply rounded-md border border-fams-orange-glow; }
+}
