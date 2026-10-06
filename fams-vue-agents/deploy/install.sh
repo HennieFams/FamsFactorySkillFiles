@@ -92,9 +92,12 @@ docker exec -u 0 -e H="$H" -e AU="$AGENT_USER" -e AG="$AGENT_GROUP" "$C" sh -euc
 
 echo
 echo "Offline self-test (guard rails, no network):"
-RESULT=$(docker exec -u "$AGENT_USER" -w /tmp "$C" sh -c "node --test '$H'/tests/*.test.mjs 2>&1" || true)
-echo "$RESULT" | grep -E "^# (pass|fail)" || true
-echo "$RESULT" | grep -q "^# fail 0" || { echo "$RESULT" | tail -40; echo "SELF-TEST FAILED - fix before creating the agents"; exit 1; }
+# Judge by node's exit code (the output format differs between Node versions).
+if RESULT=$(docker exec -u "$AGENT_USER" -w /tmp "$C" sh -c "node --test --test-reporter=tap '$H'/tests/*.test.mjs 2>&1"); then
+  echo "$RESULT" | grep -E "^# (tests|pass|fail)"
+else
+  echo "$RESULT" | tail -40; echo "SELF-TEST FAILED - fix before creating the agents"; exit 1
+fi
 
 if docker exec -u 0 "$C" sh -c "[ -s '$H/secrets/devops.pat' ]"; then
   echo "Azure DevOps token check:"
