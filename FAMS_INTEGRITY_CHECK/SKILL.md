@@ -39,7 +39,7 @@ on the VM at `H=/paperclip/fams-integrity-agent` with its own Python
    Reporting). Do not recompute any number, do not re-query the database to
    "improve" a figure, and do not add findings the engine did not produce. If
    you think something is missing, say so in the issue comment.
-4. Email the PDFs (see Emailing).
+4. Email the PDFs: `$PY $H/scripts/send_reports.py --run-dir $H/runs/$(date +%F) --pdf ShipTech=<pdf> --pdf RAM-Couriers=<pdf> --pdf PMC-Phalaborwa=<pdf>` (see Emailing the reports). Required on every daily run.
 5. Update the client portal in Notion (see Publishing to the client portal):
    `$PY $H/scripts/publish_notion.py --run-dir $H/runs/$(date +%F) --pdf ShipTech=<pdf> --pdf RAM-Couriers=<pdf> --pdf PMC-Phalaborwa=<pdf>`.
    A publishing failure never blocks or undoes the email; report it.
@@ -537,56 +537,26 @@ these pages.
 
 ## Emailing the reports
 
-After generating all three PDFs, email each one separately using the internal
-FAMS endpoint — this call needs no API key or auth header (it is
-network-trust only), just a plain HTTPS POST:
+Send the PDFs with the installed script. Never write your own HTTP code for
+this:
 
-```js
-const https = require('https');
+    $PY $H/scripts/send_reports.py --run-dir $H/runs/$(date +%F) \
+        --pdf ShipTech=<pdf> --pdf RAM-Couriers=<pdf> --pdf PMC-Phalaborwa=<pdf>
 
-function sendReportEmail({ toAddress, subject, bodyHtml, pdfBuffer, reportName }) {
-  const payload = JSON.stringify({
-    email: toAddress,
-    subject,
-    body: bodyHtml,
-    fileName: `${reportName}.pdf`,
-    fileContentBase64: pdfBuffer.toString('base64'),
-  });
-  return new Promise((resolve, reject) => {
-    const req = https.request(
-      'https://api24.fams.co.za/api/SendGrid/SendMessageEmailWithAttachment',
-      { method: 'POST', headers: { 'Content-Type': 'application/json', 'Content-Length': Buffer.byteLength(payload) } },
-      (res) => {
-        if (res.statusCode >= 200 && res.statusCode < 300) resolve(res.statusCode);
-        else reject(new Error(`Send failed: HTTP ${res.statusCode}`));
-      },
-    );
-    req.on('error', reject);
-    req.write(payload);
-    req.end();
-  });
-}
-```
-
-The endpoint accepts **one recipient per call** — there is no comma-separated
-or list form. Send each of the three client PDFs to each of the four
-recipients separately (12 calls total per run):
-
-```
-hennie@fams.co.za
-franco@fams.co.za
-schalk@fams.co.za
-werner@fams.co.za
-```
-
-Subject line: `FAMS Integrity Report — <Client> — <YYYY-MM-DD>`. Keep the HTML
-body short — a one-line summary (e.g. "3 findings across 17 accounts, see
-attached") is enough; the PDF carries the detail.
-
-If any of the 12 sends fails, report the failure in the issue comment (which
-recipient, which client, the HTTP status) rather than silently retrying more
-than once. Do not treat a partial send (some recipients succeeded, others
-didn't) as a reason to re-send to everyone — retry only the failed ones, once.
+- Recipients, endpoint and subject come from `config.json → email`: the four
+  FAMS addresses, one POST per recipient (the endpoint takes a single address),
+  so 12 sends per run. The endpoint needs no auth (network-trust only).
+- Subject: `FAMS Integrity Report — <Client> — <YYYY-MM-DD>`. The body is a
+  one-line summary built from that client's `findings.json`.
+- PDFs only. The workbooks are attached to the issue, never emailed.
+- The script retries a failed send once, records every send in
+  `<run-dir>/email_log.json`, prints a JSON summary and exits 2 if anything
+  still failed. Re-running it only sends what hasn't been sent yet, so it never
+  emails anyone twice. Don't pass `--resend` unless a human asks.
+- Report the summary in the issue comment (sent / failed, with recipient,
+  client and HTTP status for any failure). Don't send by any other means.
+- A test or an issue that says "no email" means: skip this step entirely.
+  `--to <address>` limits a send to one recipient when a human asks for a test.
 
 ## Prohibited
 

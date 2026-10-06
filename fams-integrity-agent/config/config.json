@@ -203,5 +203,16 @@
     "container": "reconciliation-reports",
     "prefix": "paperclip",
     "link_days": 365
+  },
+  "email": {
+    "endpoint": "https://api24.fams.co.za/api/SendGrid/SendMessageEmailWithAttachment",
+    "recipients": [
+      "hennie@fams.co.za",
+      "franco@fams.co.za",
+      "schalk@fams.co.za",
+      "werner@fams.co.za"
+    ],
+    "subject": "FAMS Integrity Report — {client} — {date}",
+    "timeout_seconds": 60
   }
 }

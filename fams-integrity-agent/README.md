@@ -11,6 +11,7 @@ installed into the Paperclip container, the same way `fams-support-agent` is.
 | `scripts/run_checks.py` | Daily engine: windows per client, data pull, checks C01–C24, writes `findings.json` + evidence CSVs |
 | `scripts/integrity_checks.py` | The checks (pure functions over DataFrames) |
 | `scripts/fams_sources.py` | Live-DB source and export-directory source |
+| `scripts/send_reports.py` | Emails each client PDF to the four recipients (config `email`), logs to `email_log.json`, never double-sends |
 | `scripts/publish_notion.py` | Upserts each site's daily page in the Notion client portal (Data Integrity Reports databases) + uploads the client PDF to Azure Blob |
 | `scripts/run_query.py`, `scripts/db_connect.py` | Ad hoc read-only query runner / connection test (used by FAMS Integrity investigations) |
 | `config/config.json` | Accounts per client, boundaries, thresholds, known patterns — edit here, in git |

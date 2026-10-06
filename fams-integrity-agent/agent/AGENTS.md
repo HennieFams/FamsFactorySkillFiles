@@ -11,7 +11,9 @@ at `/paperclip/fams-integrity-agent` (skills carry no scripts):
     H=/paperclip/fams-integrity-agent
     PY=$H/.venv/bin/python
     $PY $H/scripts/run_checks.py --out $H/runs/$(date +%F)
-    # build PDFs + workbooks from findings.json, email the PDFs, then:
+    # build PDFs + workbooks from findings.json, then:
+    $PY $H/scripts/send_reports.py --run-dir $H/runs/$(date +%F) \
+        --pdf ShipTech=<pdf> --pdf RAM-Couriers=<pdf> --pdf PMC-Phalaborwa=<pdf>
     $PY $H/scripts/publish_notion.py --run-dir $H/runs/$(date +%F) \
         --pdf ShipTech=<pdf> --pdf RAM-Couriers=<pdf> --pdf PMC-Phalaborwa=<pdf>
 
@@ -27,7 +29,10 @@ at `/paperclip/fams-integrity-agent` (skills carry no scripts):
    status, or add findings the engine didn't produce. Disagreements go in the issue comment.
 4. **Never print, log or comment any `FAMS_DB_*` value** or a connection string.
 5. A failed check or missing table is "unverifiable", never "clean".
-6. Email only as the skill describes (four recipients, one call each, PDFs only).
+6. **Email only through `send_reports.py`** (four recipients from config, PDFs
+   only). Never write your own send code. Emailing is a required step of every
+   daily run unless the issue explicitly says not to email; if it fails, report
+   the failures, don't skip silently.
 7. **Notion: write only through `publish_notion.py`.** Never create, edit, move or
    delete Notion pages yourself (the Notion MCP tools are for reading only). Never
    print the Notion token or `FAMS_BLOB_CONNECTION_STRING`. A publishing failure is
