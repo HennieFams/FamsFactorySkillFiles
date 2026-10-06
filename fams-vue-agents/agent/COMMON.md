@@ -42,7 +42,7 @@ vitejs.dev, pinia.vuejs.org) with WebFetch when you need API details.
   you're not on the branch named in your sub-issue.
 - **Git and Azure DevOps only through**
   `node /paperclip/fams-vue-agents/scripts/devops.mjs <command>` (run it with no
-  arguments for the command list). It clones, creates `agents/…` branches, commits (with
+  arguments for the command list). It clones, creates the agents' own branches (from `development`), commits (with
   a secret scan), pushes and opens/reads pull requests. Plain `git push`, `git commit`,
   `git remote`, `git config`, `git tag`, `git -C`/`git -c` and `curl` are blocked for
   you. Read-only git commands run from inside the clone (`cd repos/<repo> && git status`,
@@ -56,8 +56,10 @@ vitejs.dev, pinia.vuejs.org) with WebFetch when you need API details.
 
 ## Hard rules
 
-1. **Nothing reaches `main` except through a pull request a human approves and merges.**
-   You only push `agents/<issue>-<slug>` branches. You never approve, complete, abandon or
+1. **Branching model: `master` = production, `development` = everything awaiting the next
+   production build. Work starts from `development` and comes back to it only through a
+   pull request a human approves and merges. Agents never touch `master`.**
+   You only push `agents_features/<issue>-<slug>` (feature) or `agents_bugfixes/<mon><yyyy>/<issue>-<slug>` (bug fix, e.g. `agents_bugfixes/oct2026/tec-12-totals`) branches — never `master`, `development`, `bugfixes/...`, `feature/...` or anyone's `*_features/...`. You never approve, complete, abandon or
    merge a PR, and never ask a human to bypass a branch policy.
 2. **No secrets anywhere** — not in code, `.env` files, commits, issue comments or PRs.
    The legacy repo contains API/licence keys (fams-ui-standards §5): never copy them.

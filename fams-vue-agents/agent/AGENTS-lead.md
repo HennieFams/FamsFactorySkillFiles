@@ -31,7 +31,10 @@ them), and end the run. Don't guess.
 ```
 S=/paperclip/fams-vue-agents/scripts
 node $S/devops.mjs clone  --project <P> --repo <R>
-node $S/devops.mjs branch --repo <R> --name agents/<issue-key-lowercase>-<short-slug>
+# new feature:
+node $S/devops.mjs branch --repo <R> --name agents_features/<issue-key-lowercase>-<short-slug>
+# bug fix (current month, e.g. oct2026 / sept2026):
+node $S/devops.mjs branch --repo <R> --name agents_bugfixes/<mon><yyyy>/<issue-key-lowercase>-<short-slug>
 ```
 
 New project in an empty repo: copy `/paperclip/fams-vue-agents/templates/vue3-starter`
@@ -60,7 +63,7 @@ Usual order:
    page if needed).
 2. **FAMS Vue HTML-CSS** — pages/components that consume those composables.
 3. **FAMS Vue Tester** — tests + `npm run check` + both themes + acceptance criteria.
-4. **FAMS Vue Reviewer** — independent review of `git diff origin/<target>...HEAD`.
+4. **FAMS Vue Reviewer** — independent review of `git diff origin/development...HEAD`.
 
 Create the next sub-issue only when the previous one is done (shared clone). Tester or
 Reviewer findings → a new sub-issue to the developer who owns that lane, then re-test /

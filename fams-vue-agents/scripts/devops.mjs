@@ -5,16 +5,18 @@
 //   node devops.mjs projects                                 list projects the agent user can see
 //   node devops.mjs repos [--project P]                      list repos
 //   node devops.mjs clone --project P --repo R               clone or update into workspace/repos/R
-//   node devops.mjs branch --repo R --name agents/<issue>-<slug> [--from main]
-//   node devops.mjs commit --repo R --message "..." [--all]  commit staged (or all) changes on an agents/ branch
-//   node devops.mjs push --repo R                            push the current agents/ branch (never forced)
-//   node devops.mjs pr-create --repo R --title "..." --body-file F [--target main] [--draft]
+//   node devops.mjs branch --repo R --name agents_features/<issue>-<slug>             (new feature, from development)
+//   node devops.mjs branch --repo R --name agents_bugfixes/<mon><yyyy>/<issue>-<slug> (bug fix, from development)
+//   node devops.mjs commit --repo R --message "..." [--all]  commit staged (or all) changes on an agent branch
+//   node devops.mjs push --repo R                            push the current agent branch (never forced)
+//   node devops.mjs pr-create --repo R --title "..." --body-file F [--draft]   (always into development)
 //   node devops.mjs pr-status --repo R --id N                status, reviewer votes, policy results
 //   node devops.mjs pr-comments --repo R --id N              read review threads
 //   node devops.mjs pr-comment --repo R --id N --body-file F post a comment thread (reviewer findings)
 //
 // Guard rails, enforced here and in a pre-push hook installed in every clone:
-//   - only branches named agents/<...> can be created, committed on or pushed;
+//   - only the agents' own branches (agents_features/..., agents_bugfixes/<mon><yyyy>/...)
+//     can be created, committed on or pushed; they always start from development;
 //   - protected branches (config git.protected_branches) are never pushed; no force
 //     (non-fast-forward) pushes, no deletes, no tags;
 //   - no command approves, completes, abandons or merges a pull request;
@@ -48,17 +50,21 @@ export function isProtected(branch, cfg = CONFIG) {
   return cfg.git.protected_branches.some((g) => globToRegex(g).test(branch));
 }
 
-const BRANCH_RE = /^agents\/[a-z0-9][a-z0-9._-]*(\/[a-z0-9][a-z0-9._-]*)*$/;
+const SLUG = '[a-z0-9][a-z0-9._-]*';
+const MONTHS = 'jan|feb|mar|apr|may|jun|jul|aug|sept|oct|nov|dec';
+const BRANCH_RE = new RegExp(`^(agents_features/${SLUG}|agents_bugfixes/(${MONTHS})20\\d{2}/${SLUG})$`);
+
+/** e.g. 2026-10-06 -> "oct2026" (the team writes September as "sept"). */
+export function monthFolder(date = new Date()) {
+  return MONTHS.split('|')[date.getMonth()] + date.getFullYear();
+}
 
 /** Returns null if the branch may be created/pushed by an agent, else the reason. */
 export function branchProblem(branch, cfg = CONFIG) {
   if (typeof branch !== 'string' || !branch) return 'no branch name';
-  if (isProtected(branch, cfg)) return `"${branch}" is a protected branch`;
-  if (!branch.startsWith(cfg.git.branch_prefix)) return `branch must start with "${cfg.git.branch_prefix}"`;
-  if (!BRANCH_RE.test(branch) || branch.includes('..') || branch.endsWith('.lock')) {
-    return 'branch must look like agents/<issue>-<slug> (lowercase letters, digits, . _ - and /)';
-  }
-  return null;
+  if (BRANCH_RE.test(branch) && !branch.includes('..') && !branch.endsWith('.lock')) return null;
+  if (isProtected(branch, cfg)) return `"${branch}" is a protected/team branch - agents only push agents_features/... or agents_bugfixes/...`;
+  return `branch must be agents_features/<issue>-<slug> or agents_bugfixes/${monthFolder()}/<issue>-<slug> (lowercase letters, digits, . _ -)`;
 }
 
 const ZERO = /^0+$/;
@@ -181,7 +187,7 @@ function currentBranch(cwd) {
 export function installPrePushHook(cwd) {
   const hook = join(cwd, '.git', 'hooks', 'pre-push');
   const testEnv = TEST ? `FAMS_VUE_TEST=1 FAMS_VUE_WORKSPACE="${WORKSPACE}" FAMS_DEVOPS_TOKEN_FILE="${TOKEN_FILE}" ` : '';
-  const body = `#!/bin/sh\n# Installed by fams-vue-agents/scripts/devops.mjs - blocks pushes outside agents/*, force pushes, deletes and tags\n${testEnv}exec node "${join(HOME, 'scripts', 'devops.mjs')}" hook-pre-push\n`;
+  const body = `#!/bin/sh\n# Installed by fams-vue-agents/scripts/devops.mjs - blocks pushes outside the agents' own branches, force pushes, deletes and tags\n${testEnv}exec node "${join(HOME, 'scripts', 'devops.mjs')}" hook-pre-push\n`;
   writeFileSync(hook, body);
   chmodSync(hook, 0o755);
 }
@@ -264,7 +270,8 @@ const commands = {
     const name = str(args, 'name');
     const p = branchProblem(name);
     if (p) fail(p);
-    const from = str(args, 'from', false) || CONFIG.git.default_target_branch;
+    const from = CONFIG.git.base_branch;  // always development (Tecmo branching model)
+    if (args.from && args.from !== from) fail(`agent branches always start from ${from}`);
     const dirty = git(['status', '--porcelain'], { cwd: dir, quiet: true }).stdout.trim();
     if (dirty) fail('working tree has uncommitted changes - commit them or ask the Lead before switching branches');
     git(['fetch', 'origin'], { cwd: dir });
@@ -274,7 +281,7 @@ const commands = {
     } else if (has(`refs/remotes/origin/${name}`)) {
       git(['checkout', '-b', name, '--track', `origin/${name}`], { cwd: dir }); // continue a pushed branch
     } else {
-      if (!has(`refs/remotes/origin/${from}`)) fail(`origin/${from} not found`);
+      if (!has(`refs/remotes/origin/${from}`)) fail(`origin/${from} not found - this repo has no ${from} branch; ask the Lead (a human must create it)`);
       git(['checkout', '--no-track', '-b', name, `origin/${from}`], { cwd: dir });
     }
     installPrePushHook(dir);
@@ -314,8 +321,8 @@ const commands = {
     const source = currentBranch(dir);
     const p = branchProblem(source);
     if (p) fail(`source branch ${source}: ${p}`);
-    const target = str(args, 'target', false) || CONFIG.git.default_target_branch;
-    if (target.startsWith(CONFIG.git.branch_prefix) || !/^[A-Za-z0-9._/-]+$/.test(target)) fail(`invalid target branch ${target}`);
+    const target = str(args, 'target', false) || CONFIG.git.base_branch;
+    if (!CONFIG.git.allowed_pr_targets.includes(target)) fail(`pull requests may only target: ${CONFIG.git.allowed_pr_targets.join(', ')}`);
     git(['fetch', 'origin'], { cwd: dir, quiet: true });
     const local = git(['rev-parse', 'HEAD'], { cwd: dir, quiet: true }).stdout.trim();
     const remote = git(['rev-parse', '--verify', '--quiet', `refs/remotes/origin/${source}`], { cwd: dir, quiet: true, allowFail: true }).stdout.trim();

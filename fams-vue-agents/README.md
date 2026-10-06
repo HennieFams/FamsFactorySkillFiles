@@ -22,7 +22,7 @@ request issue ──▶ FAMS Vue Lead ── asks questions, plans, creates sub-
 | `agent/COMMON.md` | Rules for all five agents |
 | `agent/AGENTS-<role>.md` | Each agent's job (lead, html-css, javascript, tester, reviewer) |
 | `agent/PAPERCLIP_INSTRUCTIONS.md` | The five short blocks to paste into Paperclip's Instructions tab |
-| `scripts/devops.mjs` | The only way the agents touch Azure DevOps: clone, `agents/…` branches, commit (secret scan), push (never main, never forced), pull requests, PR comments. No approve/merge command exists |
+| `scripts/devops.mjs` | The only way the agents touch Azure DevOps: clone, branches from `development` (`agents_features/…`, `agents_bugfixes/<mon><yyyy>/…`), commit (secret scan), push (never master/development, never forced), pull requests into `development` only, PR comments. No approve/merge command exists |
 | `config/config.json` | Azure DevOps org, branch rules, legacy repo, agreed projects |
 | `templates/vue3-starter/` | Vue 3 + PrimeVue 4 + Tailwind 4 + Pinia starter already wired for fams-ui-standards (palette, fonts, `apiService.js`, lint rules, budgets, tests) |
 | `deploy/install.sh` | Installs into the Paperclip container at `/paperclip/fams-vue-agents` |
@@ -54,10 +54,13 @@ changed — other agents depend on them.
      disable repository, Edit policies, Manage permissions, Remove others' locks, Rename
      repository
    - Note: Azure DevOps gives whoever creates a branch extra rights on *that* branch. For
-     the agents that only ever means their own `agents/…` branches, which is fine.
+     the agents that only ever means their own `agents_features/…` / `agents_bugfixes/…`
+     branches, which is fine.
 
-**C. Protect `main` (and `develop` / `release/*` if a repo uses them) in every repo the
-agents use** (Repos → Branches → the branch → ⋯)
+**C. Protect `master` AND `development` in every repo the agents use** (Repos → Branches →
+the branch → ⋯). Agents branch from `development` and their PRs target `development`;
+`master` is only reached by your normal release from `development`. Also deny FAMS Agents
+Contribute on the team's shared `bugfixes/<mon><yyyy>` branches if you protect those.
 1. Branch security → FAMS Agents → **Contribute: Deny**.
 2. Branch policies: Require a minimum number of reviewers = 1; *Allow requestors to
    approve their own changes* **off**; *Prohibit the most recent pusher from approving

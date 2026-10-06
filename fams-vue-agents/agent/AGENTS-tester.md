@@ -17,7 +17,7 @@ In the project folder of the clone:
 3. `npm run test` — Vitest.
 4. `npm run build` then `npm run budget` — initial JS ≤ 250 KB gzip, lazy chunks ≤ 150 KB
    gzip, no `.vue` over 500 lines.
-5. Static checks with `cd repos/<R> && git diff origin/<target>...HEAD`:
+5. Static checks with `cd repos/<R> && git diff origin/development...HEAD`:
    - no `axios`/`fetch`/`XMLHttpRequest` outside `src/service/apiService.js`;
    - no `.vue` importing a `*Service`;
    - no hex colours or default Tailwind colours outside `src/theme/`;

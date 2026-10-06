@@ -8,21 +8,41 @@
     "api_version": "7.1"
   },
   "git": {
+    "_comment": "Tecmo branching model: master = production, development = integration (everything awaiting the next production build). Work branches are made from development. Agents may only create/push their OWN branches: agents_features/<issue>-<slug> or agents_bugfixes/<mon><yyyy>/<issue>-<slug> (mon = jan feb mar apr may jun jul aug sept oct nov dec, like the team's bugfixes/sept2024). PRs go into development only.",
     "author_name": "FAMS Vue Agents",
     "author_email": "fams-agents@fams.co.za",
-    "branch_prefix": "agents/",
-    "protected_branches": ["main", "master", "develop", "dev", "release/*", "hotfix/*"],
-    "default_target_branch": "main"
+    "base_branch": "development",
+    "allowed_pr_targets": [
+      "development"
+    ],
+    "protected_branches": [
+      "master",
+      "master*",
+      "main",
+      "development",
+      "develop",
+      "dev",
+      "release/*",
+      "hotfix/*",
+      "bugfixes/*",
+      "feature/*",
+      "*_features/*",
+      "*_feature/*"
+    ]
   },
   "workspace": "/paperclip/fams-vue-agents/workspace",
   "legacy": {
-    "_comment": "Legacy Vue 2 portal - study reference (fams-ui-standards §5).",
+    "_comment": "Legacy Vue 2 portal - study reference (fams-ui-standards \u00a75).",
     "project": "Fams24",
     "repo": "Fams24",
     "path": "FAMS-UI"
   },
   "projects": {
     "_comment": "Filled in by a human as projects are agreed: name -> {project, repo, path}. The Vue Lead asks before any new entry is used.",
-    "example-do-not-use": { "project": "Fams24", "repo": "FAMS-Portal", "path": "" }
+    "example-do-not-use": {
+      "project": "Fams24",
+      "repo": "FAMS-Portal",
+      "path": ""
+    }
   }
 }

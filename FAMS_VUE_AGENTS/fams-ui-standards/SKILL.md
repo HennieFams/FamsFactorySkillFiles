@@ -241,9 +241,13 @@ Do **not** carry over:
   issue) which Azure DevOps project and repo it goes in, and whether that repo already
   exists. Agents cannot create repos — a human creates them. No code until answered.
 - Git only through `/paperclip/fams-vue-agents/scripts/devops.mjs` (clone, branch,
-  commit-push, pull request). It only pushes branches named `agents/<issue>-<slug>`,
-  never `main`/`master`/`develop`/`release/*`, and never force-pushes.
-- Every change reaches `main` through a pull request that a human approves and merges.
+  commit-push, pull request). Tecmo branching: `master` = production, `development` =
+  awaiting the next production build. Agents branch from `development` and only push
+  `agents_features/<issue>-<slug>` (feature) or `agents_bugfixes/<mon><yyyy>/<issue>-<slug>` (bug fix, e.g. `agents_bugfixes/oct2026/tec-12-totals`);
+  never `master`, `development`, the team's `bugfixes/<mon><yyyy>`, `feature/...` or
+  `<name>_features/...` branches, and never force-push.
+- Every change reaches `development` through a pull request (target `development` only)
+  that a human approves and merges. Promotion to `master` is a human release step.
   Agents never approve or complete PRs.
 - New projects start from `templates/vue3-starter` (already wired for § 1–4: preset,
   fonts, apiService, notify, lint rules, budgets, Vitest).
