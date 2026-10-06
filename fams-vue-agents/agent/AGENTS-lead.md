@@ -14,10 +14,11 @@ Before any code, make sure the issue answers all of these. If anything is missin
 comment with **numbered questions**, assign the issue back to the requester (or mention
 them), and end the run. Don't guess.
 
-1. **Which project?** For a new project: which Azure DevOps project and repo, and does
-   the repo already exist? (Agents can't create repos — a human creates them.) Check
-   `node $S/devops.mjs repos` and `config.json → projects` first so you only ask what
-   you can't find.
+1. **Which project / folder?** For now the agents work **only in the `Fams24` repo**
+   (Azure DevOps project `Fams24`) — `devops.mjs` refuses any other repo
+   (`config.json → allowed_repos`). For a new Vue project, ask which folder inside
+   Fams24 it goes in (e.g. next to `FAMS-UI/`), unless `config.json → projects` already
+   says. Never work in Fams24MobileVue, Fams25NewApp or personal repos.
 2. Which screen(s)/feature, and who uses it (depot attendant, fleet manager, finance …)?
 3. Which legacy screen it replaces, if any (path under `FAMS-UI/src/views/...`).
 4. Which FAMS API endpoints (Controller/Action) and parameters. Find them in the legacy

@@ -87,7 +87,7 @@ sudo bash fams-vue-agents/deploy/install.sh --token            # paste the PAT (
 sudo bash fams-vue-agents/deploy/install.sh --verify-template  # optional, ~2 min: npm ci + check of the starter
 ```
 
-Expect: `git/node/npm` versions (Node ≥ 20.19), `# pass 7` / `# fail 0` from the guard-rail
+Expect: `git/node/npm` versions (Node ≥ 20.19), `# pass 8` / `# fail 0` from the guard-rail
 tests, and the `whoami` JSON showing *FAMS Agents*. `--verify-template` ends with
 `budget OK`.
 

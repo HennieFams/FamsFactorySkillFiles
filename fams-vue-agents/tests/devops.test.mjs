@@ -10,7 +10,7 @@ import { fileURLToPath } from 'node:url';
 const HERE = dirname(fileURLToPath(import.meta.url));
 const SCRIPT = join(HERE, '..', 'scripts', 'devops.mjs');
 process.env.FAMS_VUE_TEST = '1';
-const { branchProblem, prePushProblems, repoUrl, isProtected, parseArgs, bodyPathProblem, parseOrigin, monthFolder } = await import(SCRIPT);
+const { branchProblem, prePushProblems, repoUrl, isProtected, parseArgs, bodyPathProblem, parseOrigin, monthFolder, repoAllowed } = await import(SCRIPT);
 
 test('branch names: only the agents\' own feature/bugfix branches', () => {
   assert.equal(branchProblem('agents_features/tec-12-tank-card'), null);
@@ -53,6 +53,13 @@ test('body files: workspace only, never secrets', () => {
 test('origin parsing only accepts the configured org', () => {
   assert.deepEqual(parseOrigin('https://dev.azure.com/TecmoFams/Fams24/_git/FAMS%20Portal'), { project: 'Fams24', repo: 'FAMS Portal' });
   assert.equal(parseOrigin('https://evil.example/TecmoFams/Fams24/_git/x'), null);
+});
+
+test('only Fams24/Fams24 is allowed for now', () => {
+  assert.ok(repoAllowed('Fams24', 'Fams24'));
+  for (const [p, r] of [['Fams24', 'Fams24.zinet.oosthuizen'], ['Fams24MobileVue', 'Fams24MobileVue'], ['Fams25NewApp', 'Fams25NewApp'], ['fams24', 'fams24']]) {
+    assert.ok(!repoAllowed(p, r), `${p}/${r} must not be allowed`);
+  }
 });
 
 test('repo URL is built without credentials', () => {

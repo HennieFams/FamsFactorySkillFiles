@@ -89,6 +89,11 @@ export function prePushProblems(stdinText, cfg = CONFIG, isAncestor = () => true
   return problems;
 }
 
+/** Only repos listed in config allowed_repos may be cloned/changed (currently Fams24 only). */
+export function repoAllowed(project, repo, cfg = CONFIG) {
+  return (cfg.allowed_repos?.list || []).some((r) => r.project === project && r.repo === repo);
+}
+
 export function repoUrl(project, repo, cfg = CONFIG) {
   const enc = (s) => encodeURIComponent(s);
   return `${cfg.devops.base_url}/${enc(cfg.devops.organization)}/${enc(project)}/_git/${enc(repo)}`;
@@ -219,6 +224,7 @@ function originOf(cwd) {
   const url = git(['remote', 'get-url', 'origin'], { cwd, quiet: true }).stdout.trim();
   const o = parseOrigin(url);
   if (!o) fail(`origin of ${cwd} is not a ${CONFIG.devops.organization} Azure DevOps repo`);
+  if (!repoAllowed(o.project, o.repo)) fail(`${o.project}/${o.repo} is not in allowed_repos (config.json)`);
   return o;
 }
 
@@ -254,6 +260,7 @@ const commands = {
   async clone(args) {
     const project = str(args, 'project');
     const dir = repoDir(str(args, 'repo'));
+    if (!repoAllowed(project, args.repo)) fail(`${project}/${args.repo} is not in allowed_repos (config.json) - agents work on Fams24 only for now; ask the Lead`);
     if (existsSync(join(dir, '.git'))) {
       git(['fetch', '--prune', 'origin'], { cwd: dir });
       console.log(`updated ${dir}`);
@@ -267,6 +274,7 @@ const commands = {
 
   async branch(args) {
     const dir = repoDir(str(args, 'repo'));
+    if (!TEST) originOf(dir);  // only allowed repos
     const name = str(args, 'name');
     const p = branchProblem(name);
     if (p) fail(p);
@@ -290,6 +298,7 @@ const commands = {
 
   async commit(args) {
     const dir = repoDir(str(args, 'repo'));
+    if (!TEST) originOf(dir);  // only allowed repos
     const message = str(args, 'message');
     const b = currentBranch(dir);
     const p = branchProblem(b);
@@ -306,6 +315,7 @@ const commands = {
 
   async push(args) {
     const dir = repoDir(str(args, 'repo'));
+    if (!TEST) originOf(dir);  // only allowed repos
     const b = currentBranch(dir);
     const p = branchProblem(b);
     if (p) fail(`refusing to push ${b}: ${p}`);

@@ -38,11 +38,20 @@
     "path": "FAMS-UI"
   },
   "projects": {
-    "_comment": "Filled in by a human as projects are agreed: name -> {project, repo, path}. The Vue Lead asks before any new entry is used.",
+    "_comment": "Where agreed Vue projects live (all inside the Fams24 repo for now): name -> {project, repo, path}. The Vue Lead asks before using a new folder.",
     "example-do-not-use": {
       "project": "Fams24",
-      "repo": "FAMS-Portal",
-      "path": ""
+      "repo": "Fams24",
+      "path": "<folder agreed with Hennie>"
     }
+  },
+  "allowed_repos": {
+    "_comment": "The ONLY repos the agents may clone/branch/push/PR (Hennie, 6 Oct 2026: focus on Fams24 only). Add entries here to widen scope.",
+    "list": [
+      {
+        "project": "Fams24",
+        "repo": "Fams24"
+      }
+    ]
   }
 }

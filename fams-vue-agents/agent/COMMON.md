@@ -40,6 +40,8 @@ vitejs.dev, pinia.vuejs.org) with WebFetch when you need API details.
   sub-issue is in progress touches a clone**. Start every task with
   `cd repos/<repo> && git status` and stop (comment to the Lead) if the tree isn't clean or
   you're not on the branch named in your sub-issue.
+- **Scope: only the `Fams24` repo (project `Fams24`) for now.** Other repos are off-limits
+  even though the agent user can see them; `devops.mjs` refuses them.
 - **Git and Azure DevOps only through**
   `node /paperclip/fams-vue-agents/scripts/devops.mjs <command>` (run it with no
   arguments for the command list). It clones, creates the agents' own branches (from `development`), commits (with
