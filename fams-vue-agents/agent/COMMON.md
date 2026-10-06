@@ -52,8 +52,10 @@ vitejs.dev, pinia.vuejs.org) with WebFetch when you need API details.
   `node /paperclip/fams-vue-agents/scripts/devops.mjs <command>` (run it with no
   arguments for the command list). It clones, creates the agents' own branches (from `development`), commits (with
   a secret scan), pushes and opens/reads pull requests. Plain `git push`, `git commit`,
-  `git remote`, `git config`, `git tag`, `git -C`/`git -c` and `curl` are blocked for
-  you. Read-only git commands run from inside the clone (`cd repos/<repo> && git status`,
+  `git remote`, `git config`, `git tag` and `git -C`/`git -c` are blocked for you.
+  `curl` is allowed **only for the Paperclip API** (`$PAPERCLIP_API_URL` — comments,
+  issue status, sub-issues, as your `paperclip` skill describes); never use it for Azure
+  DevOps, the FAMS API or anything else. Read-only git commands run from inside the clone (`cd repos/<repo> && git status`,
   `diff`, `log`, `show`) are fine. Switch branches only with `devops.mjs branch`.
   The pull-request commands (`pr-create`, `pr-status`, `pr-comments`, `pr-comment`)
   need a clone of that repo; `--body-file` must be a file inside your working folder.

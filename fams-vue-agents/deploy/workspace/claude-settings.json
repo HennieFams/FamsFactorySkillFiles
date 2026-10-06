@@ -13,8 +13,6 @@
       "Bash(git tag:*)",
       "Bash(git -C:*)",
       "Bash(git -c:*)",
-      "Bash(curl:*)",
-      "Bash(wget:*)",
       "Read(//paperclip/fams-vue-agents/secrets/**)",
       "Edit(//paperclip/fams-vue-agents/secrets/**)",
       "Edit(//paperclip/fams-vue-agents/scripts/**)",

@@ -26,7 +26,7 @@ request issue ──▶ FAMS Vue Lead ── asks questions, plans, creates sub-
 | `config/config.json` | Azure DevOps org, branch rules, legacy repo, agreed projects |
 | `templates/vue3-starter/` | Vue 3 + PrimeVue 4 + Tailwind 4 + Pinia starter already wired for fams-ui-standards (palette, fonts, `apiService.js`, lint rules, budgets, tests) |
 | `deploy/install.sh` | Installs into the Paperclip container at `/paperclip/fams-vue-agents` |
-| `deploy/workspace/claude-settings.json` | Becomes the agents' `.claude/settings.json` (blocks plain `git push/commit`, `curl`, reading secrets, the Notion connector) |
+| `deploy/workspace/claude-settings.json` | Becomes the agents' `.claude/settings.json` (blocks plain `git push/commit/remote/config/tag`, reading secrets, editing the scripts/config, the Notion connector; `curl` stays allowed for the Paperclip API) |
 | `tests/devops.test.mjs` | Offline guard-rail tests (branch rules, pre-push hook, secret scan) |
 
 Nothing in the existing skill folders (FAMS_CORE, FAMS_VUE_CORE, FAMS_TANKS, …) was
