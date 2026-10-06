@@ -89,9 +89,22 @@ export function prePushProblems(stdinText, cfg = CONFIG, isAncestor = () => true
   return problems;
 }
 
-/** Only repos listed in config allowed_repos may be cloned/changed (currently Fams24 only). */
+/** Files not under any of the allowed folder prefixes. Returns the offending paths. */
+export function pathProblems(files, paths) {
+  return files.filter((f) => f && !paths.some((p) => p && f.startsWith(p)));
+}
+
+const same = (r, project, repo) => r.project === project && r.repo === repo;
+
+/** May the agents clone/read this repo? (read_repos + write_targets) */
 export function repoAllowed(project, repo, cfg = CONFIG) {
-  return (cfg.allowed_repos?.list || []).some((r) => r.project === project && r.repo === repo);
+  return [...(cfg.read_repos?.list || []), ...(cfg.write_targets?.list || [])].some((r) => same(r, project, repo));
+}
+
+/** The write target for this repo (agents may only change its listed folders), or null = read-only. */
+export function writeTarget(project, repo, cfg = CONFIG) {
+  const t = (cfg.write_targets?.list || []).find((r) => same(r, project, repo));
+  return t && Array.isArray(t.paths) && t.paths.length && t.paths.every((p) => typeof p === 'string' && p.endsWith('/') && !p.startsWith('/') && !p.includes('..')) ? t : null;
 }
 
 export function repoUrl(project, repo, cfg = CONFIG) {
@@ -224,8 +237,17 @@ function originOf(cwd) {
   const url = git(['remote', 'get-url', 'origin'], { cwd, quiet: true }).stdout.trim();
   const o = parseOrigin(url);
   if (!o) fail(`origin of ${cwd} is not a ${CONFIG.devops.organization} Azure DevOps repo`);
-  if (!repoAllowed(o.project, o.repo)) fail(`${o.project}/${o.repo} is not in allowed_repos (config.json)`);
+  if (!repoAllowed(o.project, o.repo)) fail(`${o.project}/${o.repo} is not an allowed repo (config.json read_repos / write_targets)`);
   return o;
+}
+
+/** Folders the agents may change in this clone; fails for read-only repos (e.g. Fams24). */
+function writePathsFor(cwd) {
+  if (TEST) return (process.env.FAMS_VUE_TEST_WRITE_PATHS || 'FAMS-UI/').split(',');
+  const o = originOf(cwd);
+  const t = writeTarget(o.project, o.repo);
+  if (!t) fail(`${o.project}/${o.repo} is READ-ONLY for the agents. Changes are only allowed in a repo + folder Hennie has added to config.json write_targets - ask the Lead`);
+  return t.paths;
 }
 
 function readBody(args) {
@@ -260,7 +282,7 @@ const commands = {
   async clone(args) {
     const project = str(args, 'project');
     const dir = repoDir(str(args, 'repo'));
-    if (!repoAllowed(project, args.repo)) fail(`${project}/${args.repo} is not in allowed_repos (config.json) - agents work on Fams24 only for now; ask the Lead`);
+    if (!repoAllowed(project, args.repo)) fail(`${project}/${args.repo} is not an allowed repo (config.json read_repos / write_targets) - ask the Lead`);
     if (existsSync(join(dir, '.git'))) {
       git(['fetch', '--prune', 'origin'], { cwd: dir });
       console.log(`updated ${dir}`);
@@ -274,7 +296,7 @@ const commands = {
 
   async branch(args) {
     const dir = repoDir(str(args, 'repo'));
-    if (!TEST) originOf(dir);  // only allowed repos
+    const writePaths = writePathsFor(dir);  // read-only repos stop here
     const name = str(args, 'name');
     const p = branchProblem(name);
     if (p) fail(p);
@@ -298,14 +320,16 @@ const commands = {
 
   async commit(args) {
     const dir = repoDir(str(args, 'repo'));
-    if (!TEST) originOf(dir);  // only allowed repos
+    const writePaths = writePathsFor(dir);  // read-only repos stop here
     const message = str(args, 'message');
     const b = currentBranch(dir);
     const p = branchProblem(b);
     if (p) fail(`refusing to commit on ${b}: ${p}`);
     if (args.all) git(['add', '--all'], { cwd: dir });
-    const staged = git(['diff', '--cached', '--name-only'], { cwd: dir, quiet: true }).stdout.trim();
+    const staged = git(['diff', '--cached', '--name-only', '--no-renames'], { cwd: dir, quiet: true }).stdout.trim();
     if (!staged) fail('nothing staged to commit');
+    const outside = pathProblems(staged.split('\n'), writePaths);
+    if (outside.length) fail(`agents may only change files under ${writePaths.join(', ')} - unstage these (git restore --staged <file>):\n${outside.slice(0, 10).join('\n')}`);
     const tok = existsSync(TOKEN_FILE) ? readFileSync(TOKEN_FILE, 'utf8').trim() : '';
     const added = git(['diff', '--cached', '-U0'], { cwd: dir, quiet: true }).stdout.split('\n').filter((l) => l.startsWith('+') && !l.startsWith('+++'));
     const hits = added.filter((l) => SECRET_RE.test(l) || (tok && l.includes(tok)));
@@ -315,7 +339,7 @@ const commands = {
 
   async push(args) {
     const dir = repoDir(str(args, 'repo'));
-    if (!TEST) originOf(dir);  // only allowed repos
+    const writePaths = writePathsFor(dir);  // read-only repos stop here
     const b = currentBranch(dir);
     const p = branchProblem(b);
     if (p) fail(`refusing to push ${b}: ${p}`);
@@ -326,6 +350,7 @@ const commands = {
 
   async 'pr-create'(args) {
     const dir = repoDir(str(args, 'repo'));
+    writePathsFor(dir);  // no PRs on read-only repos
     const { project, repo } = originOf(dir);
     const title = str(args, 'title');
     const source = currentBranch(dir);
@@ -396,6 +421,20 @@ const commands = {
     const input = readFileSync(0, 'utf8');
     const isAncestor = (a, b) => spawnSync('git', ['merge-base', '--is-ancestor', a, b], { encoding: 'utf8' }).status === 0;
     const problems = prePushProblems(input, CONFIG, isAncestor);
+    // every file changed by the pushed commits must be under the write target's folders
+    let writePaths;
+    try { writePaths = writePathsFor(process.cwd()); } catch (e) { problems.push(e.message); writePaths = []; }
+    for (const line of input.split('\n').map((l) => l.trim()).filter(Boolean)) {
+      const [, localSha, , remoteSha] = line.split(/\s+/);
+      if (!localSha || ZERO.test(localSha)) continue;
+      const base = remoteSha && !ZERO.test(remoteSha)
+        ? remoteSha
+        : spawnSync('git', ['merge-base', localSha, `origin/${CONFIG.git.base_branch}`], { encoding: 'utf8' }).stdout.trim();
+      if (!base) { problems.push(`cannot find origin/${CONFIG.git.base_branch} to check changed paths`); continue; }
+      const files = spawnSync('git', ['diff', '--name-only', '--no-renames', base, localSha], { encoding: 'utf8' }).stdout.split('\n');
+      const outside = pathProblems(files, writePaths);
+      if (outside.length && writePaths.length) problems.push(`changes outside ${writePaths.join(', ')}: ${outside.slice(0, 5).join(', ')}`);
+    }
     if (problems.length) {
       console.error('pre-push blocked by fams-vue-agents:\n - ' + problems.join('\n - '));
       process.exit(1);

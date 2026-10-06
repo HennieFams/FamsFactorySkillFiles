@@ -237,6 +237,9 @@ Do **not** carry over:
 
 ## 6. Repository and delivery rules (all five Vue agents)
 
+- **Scope:** `Fams24` is read-only for the agents (study `FAMS-UI/` and `FAMS-API/`, the
+  main FAMS API code). Agents change code only in the repo + folder Hennie gives per
+  project (`config.json → write_targets`, enforced by `devops.mjs`).
 - Before starting a **new project**, the Vue Lead asks the requester (on the Paperclip
   issue) which Azure DevOps project and repo it goes in, and whether that repo already
   exists. Agents cannot create repos — a human creates them. No code until answered.

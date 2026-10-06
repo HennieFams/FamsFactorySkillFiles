@@ -87,7 +87,7 @@ sudo bash fams-vue-agents/deploy/install.sh --token            # paste the PAT (
 sudo bash fams-vue-agents/deploy/install.sh --verify-template  # optional, ~2 min: npm ci + check of the starter
 ```
 
-Expect: `git/node/npm` versions (Node ≥ 20.19), `# pass 8` / `# fail 0` from the guard-rail
+Expect: `git/node/npm` versions (Node ≥ 20.19), `# pass 9` / `# fail 0` from the guard-rail
 tests, and the `whoami` JSON showing *FAMS Agents*. `--verify-template` ends with
 `budget OK`.
 
@@ -150,12 +150,29 @@ it): a small, real screen, e.g. *"Rebuild the Quick ATG tank-levels grid
 (fams-quick-report § 3.5) as a new Vue 3 project in repo <name>"*. The Lead should come
 back with questions before writing code — that's expected.
 
-## 5. Day-to-day
+## 5. Give the agents a repo + folder to work in
+
+Fams24 is read-only for the agents. Before the first build task, add the repo and folder
+to `config/config.json → write_targets` (in git), push, and re-run the installer:
+
+```json
+"write_targets": {
+  "list": [
+    { "project": "<DevOps project>", "repo": "<repo>", "paths": ["<folder>/"], "note": "what this is for" }
+  ]
+}
+```
+
+`paths` are folder prefixes ending in `/` (several allowed). The repo needs a
+`development` branch. The agents can then branch/commit/push/PR there — only inside those
+folders, only via `agents_features/…` / `agents_bugfixes/…` branches, PRs into
+`development` only. Mention the same repo + folder on the issue.
+
+## 6. Day-to-day
 
 - Change instructions, config, template or skills in git → push → on the VM:
   `git pull && sudo bash fams-vue-agents/deploy/install.sh`.
-- New agreed project: add it to `config/config.json → projects` (optional; the Lead asks
-  anyway).
+- New project to work in: add its repo + folder to `config/config.json → write_targets` (section 5).
 - Clones live in `/paperclip/fams-vue-agents/workspace/repos` (on the VM:
   `/data/docker/volumes/docker_paperclip-data/_data/fams-vue-agents/workspace/repos`).
   Safe to delete a clone; the next task re-clones it.

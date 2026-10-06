@@ -37,21 +37,24 @@
     "repo": "Fams24",
     "path": "FAMS-UI"
   },
-  "projects": {
-    "_comment": "Where agreed Vue projects live (all inside the Fams24 repo for now): name -> {project, repo, path}. The Vue Lead asks before using a new folder.",
-    "example-do-not-use": {
-      "project": "Fams24",
-      "repo": "Fams24",
-      "path": "<folder agreed with Hennie>"
-    }
+  "study_paths": {
+    "_comment": "Folders of Fams24 worth studying.",
+    "Fams24/Fams24": [
+      "FAMS-UI/",
+      "FAMS-API/"
+    ]
   },
-  "allowed_repos": {
-    "_comment": "The ONLY repos the agents may clone/branch/push/PR (Hennie, 6 Oct 2026: focus on Fams24 only). Add entries here to widen scope.",
+  "read_repos": {
+    "_comment": "Repos the agents may clone and READ only (study). Nothing in them may be changed. Fams24 = legacy FAMS-UI (Vue 2) + FAMS-API.",
     "list": [
       {
         "project": "Fams24",
         "repo": "Fams24"
       }
     ]
+  },
+  "write_targets": {
+    "_comment": "The ONLY places the agents may change code: added by Hennie per project ({project, repo, paths:[\"folder/\"], note}). Branch/commit/push/PR are refused everywhere else. Empty until Hennie gives the first repo + folder.",
+    "list": []
   }
 }

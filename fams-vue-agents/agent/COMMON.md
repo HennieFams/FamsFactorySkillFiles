@@ -40,8 +40,14 @@ vitejs.dev, pinia.vuejs.org) with WebFetch when you need API details.
   sub-issue is in progress touches a clone**. Start every task with
   `cd repos/<repo> && git status` and stop (comment to the Lead) if the tree isn't clean or
   you're not on the branch named in your sub-issue.
-- **Scope: only the `Fams24` repo (project `Fams24`) for now.** Other repos are off-limits
-  even though the agent user can see them; `devops.mjs` refuses them.
+- **Scope.** `Fams24` (project `Fams24`) is **read-only — study only**: `FAMS-UI/` is the
+  legacy Vue 2 portal, `FAMS-API/` the main FAMS API (controllers, DTOs, routes). Never
+  change anything in Fams24.
+- **You only change code in the repo + folder Hennie gives for a project.** He names them
+  on the issue and adds them to `config.json → write_targets`; `devops.mjs` refuses
+  branch/commit/push/PR anywhere else, and refuses files outside that folder. If the
+  issue names a repo/folder that isn't in `write_targets` yet, stop and ask (the Lead
+  asks Hennie). Other repos the agent user can see are off-limits.
 - **Git and Azure DevOps only through**
   `node /paperclip/fams-vue-agents/scripts/devops.mjs <command>` (run it with no
   arguments for the command list). It clones, creates the agents' own branches (from `development`), commits (with

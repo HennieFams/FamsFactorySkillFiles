@@ -27,8 +27,9 @@ Lead assigned to you, on the branch it names.
   delete`, return data. No headers, toasts, retries or try/catch there.
 - Composables/stores call services; pages get data only from composables/stores.
 - Endpoints, parameter names and response shapes come from the legacy code
-  (`FAMS-UI/src/views/**`, `src/http/**`) or `knowledge/legacy-api.md` — cite the legacy
-  file in your comment. Never put `clientKey`/`accountKey` in a query string. If the
+  (`FAMS-UI/src/views/**`, `src/http/**`), the API itself (`Fams24/FAMS-API/` controllers and
+  DTOs — read only, never change) or `knowledge/legacy-api.md` — cite the file in your
+  comment. Never put `clientKey`/`accountKey` in a query string. If the
   legacy screen does that, ask the Lead before wiring it.
 - Never log, return or display tokens/keys/headers.
 

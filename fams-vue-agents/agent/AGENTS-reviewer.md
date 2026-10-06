@@ -27,10 +27,12 @@ Check, in this order:
 3. **Correctness against the legacy behaviour** — endpoints, parameters and field meanings
    match the legacy code (spot-check the cited legacy files); business rules match the
    domain skills (thresholds, offline rule, dispensing validation and its Known Gaps).
-4. **Security** — no secrets, tokens or keys anywhere in the diff, logs or comments; no
+4. **Scope** — every changed file is inside the project folder named in
+   `config.json → write_targets` for this repo; nothing in Fams24.
+5. **Security** — no secrets, tokens or keys anywhere in the diff, logs or comments; no
    new dependency that isn't needed; nothing in the FAMS Core approval list slipped in
    without human approval.
-5. **Tests** — do they actually exercise the new behaviour (not just render)? Any test
+6. **Tests** — do they actually exercise the new behaviour (not just render)? Any test
    weakened or deleted?
 
 ## Verdict

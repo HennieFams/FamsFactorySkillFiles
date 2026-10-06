@@ -10,7 +10,7 @@ import { fileURLToPath } from 'node:url';
 const HERE = dirname(fileURLToPath(import.meta.url));
 const SCRIPT = join(HERE, '..', 'scripts', 'devops.mjs');
 process.env.FAMS_VUE_TEST = '1';
-const { branchProblem, prePushProblems, repoUrl, isProtected, parseArgs, bodyPathProblem, parseOrigin, monthFolder, repoAllowed } = await import(SCRIPT);
+const { branchProblem, prePushProblems, repoUrl, isProtected, parseArgs, bodyPathProblem, parseOrigin, monthFolder, repoAllowed, pathProblems, writeTarget } = await import(SCRIPT);
 
 test('branch names: only the agents\' own feature/bugfix branches', () => {
   assert.equal(branchProblem('agents_features/tec-12-tank-card'), null);
@@ -55,11 +55,27 @@ test('origin parsing only accepts the configured org', () => {
   assert.equal(parseOrigin('https://evil.example/TecmoFams/Fams24/_git/x'), null);
 });
 
-test('only Fams24/Fams24 is allowed for now', () => {
+test('Fams24 is readable but read-only; nothing is writable until Hennie adds a write target', () => {
   assert.ok(repoAllowed('Fams24', 'Fams24'));
+  assert.equal(writeTarget('Fams24', 'Fams24'), null);
   for (const [p, r] of [['Fams24', 'Fams24.zinet.oosthuizen'], ['Fams24MobileVue', 'Fams24MobileVue'], ['Fams25NewApp', 'Fams25NewApp'], ['fams24', 'fams24']]) {
     assert.ok(!repoAllowed(p, r), `${p}/${r} must not be allowed`);
   }
+  const cfg = { write_targets: { list: [
+    { project: 'P', repo: 'R', paths: ['portal/'] },
+    { project: 'P', repo: 'Bad1', paths: [] },
+    { project: 'P', repo: 'Bad2', paths: ['../x/'] },
+    { project: 'P', repo: 'Bad3', paths: ['no-slash'] }
+  ] } };
+  assert.deepEqual(writeTarget('P', 'R', cfg).paths, ['portal/']);
+  for (const r of ['Bad1', 'Bad2', 'Bad3', 'Other']) assert.equal(writeTarget('P', r, cfg), null);
+});
+
+test('only files under the write target folder may change', () => {
+  const W = ['FAMS-UI/'];
+  assert.deepEqual(pathProblems(['FAMS-UI/src/main.js', 'FAMS-UI/package.json'], W), []);
+  assert.deepEqual(pathProblems(['FAMS-API/Controllers/X.cs', 'azure-pipelines.yml', 'FAMS-UIx/a', 'docs/a.md'], W),
+    ['FAMS-API/Controllers/X.cs', 'azure-pipelines.yml', 'FAMS-UIx/a', 'docs/a.md']);
 });
 
 test('repo URL is built without credentials', () => {
@@ -101,7 +117,8 @@ test('end-to-end against a local bare repo: agent branch from development pushes
   assert.ok(existsSync(join(repo, 'dev.txt')), 'agent branch must start from development, not master');
   // --from anything else is refused
   assert.notEqual(run('node', [SCRIPT, 'branch', '--repo', 'demo', '--name', 'agents_features/2-x', '--from', 'master'], tmp, env).status, 0);
-  writeFileSync(join(repo, 'a.txt'), 'hello\n');
+  mkdirSync(join(repo, 'FAMS-UI'), { recursive: true });
+  writeFileSync(join(repo, 'FAMS-UI', 'a.txt'), 'hello\n');
   r = run('node', [SCRIPT, 'commit', '--repo', 'demo', '--message', '[vue-js] add a', '--all'], tmp, env);
   assert.equal(r.status, 0, r.stderr);
   r = run('node', [SCRIPT, 'push', '--repo', 'demo'], tmp, env);
@@ -140,15 +157,31 @@ test('end-to-end against a local bare repo: agent branch from development pushes
   // secrets are refused at commit time
   run('git', ['checkout', '-q', 'agents_features/1-demo'], repo);
   const fakeKey = ['AI', 'za', 'Sy', 'D0123456789abcdefghijklmnopqrstu'].join(''); // built at runtime so this file holds no key-shaped literal
-  writeFileSync(join(repo, 'b.js'), `const k = { key: '${fakeKey}' };\n`);
+  writeFileSync(join(repo, 'FAMS-UI', 'b.js'), `const k = { key: '${fakeKey}' };\n`);
   r = run('node', [SCRIPT, 'commit', '--repo', 'demo', '--message', 'x', '--all'], tmp, env);
   assert.notEqual(r.status, 0);
   assert.match(r.stderr, /secret/);
 
   // ... including the access token itself
-  writeFileSync(join(repo, 'b.js'), "const t = 'dummy-token-value-123';\n");
+  writeFileSync(join(repo, 'FAMS-UI', 'b.js'), "const t = 'dummy-token-value-123';\n");
   writeFileSync(tokenFile, 'dummy-token-value-123');
   r = run('node', [SCRIPT, 'commit', '--repo', 'demo', '--message', 'x', '--all'], tmp, env);
   assert.notEqual(r.status, 0);
   assert.doesNotMatch(r.stderr, /dummy-token-value-123/);
+  run('git', ['checkout', '-q', '--', '.'], repo);
+  run('git', ['clean', '-qfd'], repo);
+  writeFileSync(tokenFile, 'dummy');
+
+  // FAMS-API (and anything outside FAMS-UI/) can't be committed through the script ...
+  mkdirSync(join(repo, 'FAMS-API'), { recursive: true });
+  writeFileSync(join(repo, 'FAMS-API', 'Api.cs'), '// change\n');
+  r = run('node', [SCRIPT, 'commit', '--repo', 'demo', '--message', 'x', '--all'], tmp, env);
+  assert.notEqual(r.status, 0);
+  assert.match(r.stderr, /only change files under FAMS-UI\//);
+  // ... and if committed with plain git anyway, the pre-push hook stops it
+  run('git', ['add', '--all'], repo);
+  run('git', ['-c', 'user.name=t', '-c', 'user.email=t@t', 'commit', '-qm', 'sneaky api change'], repo);
+  r = run('git', ['push', 'origin', 'HEAD:refs/heads/agents_features/1-demo'], repo, env);
+  assert.notEqual(r.status, 0);
+  assert.match(r.stderr, /changes outside FAMS-UI\//);
 });

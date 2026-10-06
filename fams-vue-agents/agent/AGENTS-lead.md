@@ -14,11 +14,10 @@ Before any code, make sure the issue answers all of these. If anything is missin
 comment with **numbered questions**, assign the issue back to the requester (or mention
 them), and end the run. Don't guess.
 
-1. **Which project / folder?** For now the agents work **only in the `Fams24` repo**
-   (Azure DevOps project `Fams24`) — `devops.mjs` refuses any other repo
-   (`config.json → allowed_repos`). For a new Vue project, ask which folder inside
-   Fams24 it goes in (e.g. next to `FAMS-UI/`), unless `config.json → projects` already
-   says. Never work in Fams24MobileVue, Fams25NewApp or personal repos.
+1. **Which repo and folder?** Hennie gives the repo and the folder to work in. Check
+   `config.json → write_targets` (`cat /paperclip/fams-vue-agents/config/config.json`):
+   if that repo + folder isn't listed, ask Hennie to add it — `devops.mjs` refuses to
+   branch, commit or push anywhere else. `Fams24` is read-only (study only). Never work in Fams24MobileVue, Fams25NewApp or personal repos.
 2. Which screen(s)/feature, and who uses it (depot attendant, fleet manager, finance …)?
 3. Which legacy screen it replaces, if any (path under `FAMS-UI/src/views/...`).
 4. Which FAMS API endpoints (Controller/Action) and parameters. Find them in the legacy
@@ -100,7 +99,8 @@ When asked to study the legacy portal (TecmoFams / Fams24 / Fams24, folder `FAMS
    markdown, evidence = file paths + line numbers, **no keys or secrets copied**):
    - `legacy-screens.md` — menu → route → view file → purpose, per menu group.
    - `legacy-api.md` — every `Controller/Action` called, method, parameters, which views
-     call it, response shape where visible.
+     call it, and the matching controller/action in `FAMS-API/` (route, request and
+     response DTO, auth attributes) — read-only, cite file + line.
    - `legacy-auth-session.md` — login flow, session/local storage keys, headers, roles/ACL.
    - `legacy-components.md` — reusable components/patterns worth rebuilding, and their
      Vue 3 + PrimeVue equivalents.
