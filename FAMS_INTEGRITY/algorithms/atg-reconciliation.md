@@ -1,7 +1,9 @@
 # ATG / Cross-Source Reconciliation
 
-Compares `UsageDispensing`, `UsageDispensingIOT`, and `UsageDispensingAndroid`
-for the same TransactionID — the primary integrity signal in this system.
+Compares `UsageDispensing` (source of truth) with its backups
+`UsageDispensingIOT` (backup 1) and `UsageDispensingAndroid` (backup 2) for the
+same TransactionID — the primary integrity signal in this system. When they
+disagree, `UsageDispensing` stands in reporting and the difference is a finding.
 
 **IOT vs Android log mismatch beyond tolerance:**
 ```sql
@@ -20,9 +22,9 @@ ORDER BY IOT.Createdate;
 
 **Three-way compare for a store:**
 ```sql
-SELECT u.Volume AS AndroidReportedVolume, IOT.Volume AS IOTVolume, logg.Volume AS LogVolume,
-       u.AccountID, u.Recnumber AS AndroidRecnumber, u.ID AS AndroidID, u.OrigVolume AS AndroidVolumeOrig,
-       u.TransactionID AS AndroidTransactionID, u.Createdate AS AndroidDate,
+SELECT u.Volume AS UDVolume, IOT.Volume AS IOTVolume, logg.Volume AS AndroidVolume,
+       u.AccountID, u.Recnumber AS UDRecnumber, u.ID AS UDID, u.OrigVolume AS UDVolumeOrig,
+       u.TransactionID AS UDTransactionID, u.Createdate AS UDDate,
        IOT.ID AS IOTID, IOT.TransactionID AS IOTTransactionID, IOT.Createdate AS IOTDate,
        logg.Recnumber AS LogRecnumber, logg.ID AS LogID,
        ABS(logg.TotalizerEnd - logg.Totalizer) AS LogVolumeTotalizer,
@@ -30,8 +32,10 @@ SELECT u.Volume AS AndroidReportedVolume, IOT.Volume AS IOTVolume, logg.Volume A
 FROM UsageDispensing u
 LEFT JOIN UsageDispensingIOT IOT ON u.TransactionID = IOT.TransactionID AND u.AccountID = IOT.AccountID
 LEFT JOIN UsageDispensingAndroid logg ON u.TransactionID = logg.TransactionID AND u.AccountID = logg.AccountID
-WHERE IOT.AccountID = {AccountID} AND IOT.Createdate >= '{StartDate}'
-  AND IOT.Volume > 0 AND u.StoreID IN ({StoreIDList})
+WHERE u.AccountID = {AccountID} AND u.Createdate >= '{StartDate}'
+  AND u.Volume > 0 AND u.StoreID IN ({StoreIDList})
+-- filter on u (the source of truth), not IOT: a WHERE on IOT turns the LEFT JOIN into
+-- an inner join and silently drops UsageDispensing rows that have no IOT backup
 ORDER BY u.Createdate;
 ```
 
@@ -42,7 +46,10 @@ SELECT * FROM UsageDispensingAndroid WHERE AccountID = {AccountID} AND Transacti
 SELECT * FROM UsageDispensingIOT     WHERE AccountID = {AccountID} AND TransactionID = '{TransactionID}' AND Createdate >= '{StartDate}';
 ```
 
-**Trace to the raw inbound JSON payload (ground truth when the above disagree):**
+**Trace to the raw payload to settle a disputed transaction.** For accounts
+with Android devices the raw table behind `UsageDispensing` is
+`TempTableDataJson`; for IOT the raw table is `IOTData_FMS` (by
+`TransactionID`). IOT-only accounts have no `TempTableDataJson` rows:
 ```sql
 SELECT JSON_VALUE(Jsondata, '$.transactionID')   AS TransactionID,
        JSON_VALUE(Jsondata, '$.oldLitres')       AS OldLitres,

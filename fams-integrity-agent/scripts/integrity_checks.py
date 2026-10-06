@@ -340,7 +340,7 @@ def check_identifiers(d, cfg):
 
 
 # ----------------------------------------------------------------------------
-# C06-C08 dispensing reconciliation (canonical vs IOT/Android), both directions
+# C06-C08 dispensing reconciliation: UsageDispensing (source of truth) vs backups IOT/Android, both directions
 # fams-daily-report analyze.py classify_dispensing; fams-integrity atg-reconciliation.md
 # ----------------------------------------------------------------------------
 def classify_dispensing(d, cfg):
@@ -372,7 +372,7 @@ def classify_dispensing(d, cfg):
         eq = num(pd.Series([r.get("EquipmentID")]))[0]
         if pd.notna(eq) and int(eq) in acct_cfg_ids(cfg, "known_offload_equipment_ids", r["AccountID"]):
             return "Confirmed offloading (known tank-linked equipment)"
-        return "Unexplained - no raw evidence"
+        return "Unexplained - no backup record"
 
     w["_ValidTx"] = valid_id(w["TransactionID"])
     w["Classification"] = w.apply(classify, axis=1)
@@ -396,8 +396,8 @@ def classify_dispensing(d, cfg):
             w.loc[bad["index"], "Classification"] = "Volume mismatch"
             mism.append(bad.assign(ComparedWith=label))
 
-    # raw-feed silence annotation for unexplained rows (telemetry-outage false positive)
-    unexpl_idx = w.index[w["Classification"] == "Unexplained - no raw evidence"]
+    # backup-feed (IOT+Android) silence annotation for unexplained rows (telemetry-outage false positive)
+    unexpl_idx = w.index[w["Classification"] == "Unexplained - no backup record"]
     silence = pd.Series(False, index=w.index)
     for i in unexpl_idx:
         t, acc = w.at[i, "CreateDate"], w.at[i, "AccountID"]
@@ -406,21 +406,23 @@ def classify_dispensing(d, cfg):
         gap_b = (t - before.max()).total_seconds() / 60 if len(before) else np.inf
         gap_a = (after.min() - t).total_seconds() / 60 if len(after) else np.inf
         silence[i] = gap_b > silence_min and gap_a > silence_min
-    w["DuringRawFeedSilence"] = silence
-    w["PossibleOffloadPattern"] = (w["Classification"] == "Unexplained - no raw evidence") & \
+    w["DuringBackupFeedSilence"] = silence
+    w["PossibleOffloadPattern"] = (w["Classification"] == "Unexplained - no backup record") & \
         w["TransactionID"].astype(str).str.match(MAC_PREFIX)
 
     cols = [c for c in ["ID", "AccountID", "StoreID", "EquipmentID", "TransactionID", "UnqTrID", "Volume",
-                        "CreateDate", "Recnumber", "MatchedIOT", "MatchedAndroid", "DuringRawFeedSilence",
+                        "CreateDate", "Recnumber", "MatchedIOT", "MatchedAndroid", "DuringBackupFeedSilence",
                         "PossibleOffloadPattern"] if c in w.columns]
-    for acc, g in w[w["Classification"] == "Unexplained - no raw evidence"].groupby("AccountID"):
-        g_out = g[g["DuringRawFeedSilence"]]
-        g_in = g[~g["DuringRawFeedSilence"]]
+    for acc, g in w[w["Classification"] == "Unexplained - no backup record"].groupby("AccountID"):
+        g_out = g[g["DuringBackupFeedSilence"]]
+        g_in = g[~g["DuringBackupFeedSilence"]]
         pending = acct_cfg_ids(cfg, "pending_offload_equipment_ids", acc)
         if len(g_in):
             note = (f"{len(g_in)} non-zero dispensing transaction(s) ({g_in['Volume'].sum():.2f} L) have no matching "
                     "UsageDispensingIOT or UsageDispensingAndroid record, while those feeds were otherwise reporting. "
-                    "Possible causes: raw record not uploaded, ID mismatch, or offloading recorded as dispensing.")
+                    "UsageDispensing is the source of truth, so the transaction stands; what is missing is its backup "
+                    "evidence. Possible causes: backup record not created/uploaded, ID mismatch, or offloading recorded "
+                    "as dispensing.")
             po = g_in[g_in["PossibleOffloadPattern"]]
             if len(po):
                 eqs = sorted({str(int(e)) for e in num(po["EquipmentID"]).dropna()})
@@ -434,7 +436,7 @@ def classify_dispensing(d, cfg):
                          affected=f"{g_in['Volume'].sum():.2f} L / {len(g_in)} txns", litres=g_in["Volume"].sum(),
                          count=len(g_in), evidence=g_in[cols]))
         if len(g_out):
-            out.append(F("C06", "Monitor", acc, "Unexplained dispensing during raw-feed outage",
+            out.append(F("C06", "Monitor", acc, "Unexplained dispensing during backup-feed outage",
                          f"{len(g_out)} transaction(s) ({g_out['Volume'].sum():.2f} L) fall inside a stretch where "
                          f"neither IOT nor Android reported anything for >{silence_min} min either side, while "
                          "UsageDispensing kept logging. Possible cause: device/connectivity outage (confirmed pattern "
@@ -445,9 +447,10 @@ def classify_dispensing(d, cfg):
     if mism:
         mm = pd.concat(mism)
         for acc, g in mm.groupby("AccountID"):
-            out.append(F("C07", "Investigate", acc, "Volume mismatch (canonical vs raw)",
+            out.append(F("C07", "Investigate", acc, "Volume mismatch (UsageDispensing vs backup)",
                          f"{len(g)} transaction(s) differ by more than {tol}% between UsageDispensing and the "
-                         "IOT/Android record of the same TransactionID. Possible causes: manual edit, BT link loss "
+                         "backup record (IOT first, else Android) of the same TransactionID. UsageDispensing is the source of "
+                         "truth; the difference needs explaining. Possible causes: manual edit, BT link loss "
                          "mid-transaction, or decode error. Check the totaliser evidence for each.",
                          affected=f"{g['Volume'].sum():.2f} L / {len(g)} txns", litres=g["Volume"].sum(),
                          count=len(g), evidence=g[[c for c in ["ID", "AccountID", "StoreID", "EquipmentID",
@@ -460,7 +463,7 @@ def classify_dispensing(d, cfg):
                      "excluded from the dispensing-anomaly count.", litres=g["Volume"].sum(), count=len(g),
                      evidence=g[cols]))
 
-    # C08 reverse direction: raw device record with no canonical row
+    # C08 reverse direction: backup record (IOT/Android) with no UsageDispensing row
     canon = set(zip(d.disp["AccountID"].astype("Int64"), d.disp["TransactionID"].astype(str))) if not empty(d.disp) else set()
     for tbl in (d.transfer, d.receiving):
         if not empty(tbl) and has(tbl, "AccountID", "TransactionID"):
@@ -474,11 +477,11 @@ def classify_dispensing(d, cfg):
             sw = sw[~num(sw["TypeID"]).isin([4])]
         miss = sw[[k not in canon for k in zip(sw["AccountID"].astype("Int64"), sw["TransactionID"].astype(str))]]
         for acc, g in miss.groupby("AccountID"):
-            out.append(F("C08", "Investigate", acc, f"Raw record missing from canonical ({label})",
+            out.append(F("C08", "Investigate", acc, f"Backup record missing from UsageDispensing ({label})",
                          f"{len(g)} {label} transaction(s) ({num(g['Volume']).sum():.2f} L) never reached "
                          "UsageDispensing/UsageTransfer/UsageReceiving (searched across the whole fetched range, not "
-                         "just the window). Possible cause: import/processing failure. These litres are missing from "
-                         "client reporting.", affected=f"{num(g['Volume']).sum():.2f} L / {len(g)} txns",
+                         "just the window). UsageDispensing is the source of truth for client reporting, so these litres are "
+                         "missing from it. Possible cause: import/decode failure.", affected=f"{num(g['Volume']).sum():.2f} L / {len(g)} txns",
                          litres=num(g["Volume"]).sum(), count=len(g),
                          evidence=g[[c for c in ["ID", "AccountID", "DeviceID", "StoreID", "TransactionID", "TypeID",
                                                  "ProductID", "Volume", "CreateDate"] if c in g.columns]]))
@@ -1225,15 +1228,77 @@ def check_fk(d, cfg):
     return out
 
 
+# ----------------------------------------------------------------------------
+# C25 IOT raw-to-decoded gap: IOTData_FMS dispensing record not decoded
+# IOTData_FMS is the raw IOT stream. Each dispensing record (TypeID 1) is decoded
+# into UsageDispensingIOT (backup) and into UsageDispensing (source of truth) when
+# the transaction isn't already there. Searched across the whole fetched range.
+# ----------------------------------------------------------------------------
+def check_fms_decode(d, cfg):
+    out = []
+    w = in_window(d.fms, d)
+    if empty(w) or not has(w, "AccountID", "TransactionID", "TypeID"):
+        return out
+    grace = pd.Timedelta(minutes=cfg["tolerances"].get("decode_grace_minutes", 30))
+    w = w[(num(w["TypeID"]) == 1) & valid_id(w["TransactionID"]) & (w["CreateDate"] < d.window_end - grace)]
+    if empty(w):
+        return out
+    k = lambda df: set(zip(df["AccountID"].astype("Int64"), df["TransactionID"].astype(str))) \
+        if has(df, "AccountID", "TransactionID") else set()  # noqa: E731
+    iot_k, ud_k = k(d.iot), k(d.disp)
+    ud_vol = {} if empty(d.disp) else d.disp.assign(V=num(d.disp["Volume"])).groupby(
+        [d.disp["AccountID"].astype("Int64"), d.disp["TransactionID"].astype(str)])["V"].sum().to_dict()
+    keys = list(zip(w["AccountID"].astype("Int64"), w["TransactionID"].astype(str)))
+    w = w.assign(InUsageDispensingIOT=[x in iot_k for x in keys], InUsageDispensing=[x in ud_k for x in keys],
+                 UsageDispensingVolume=[ud_vol.get(x) for x in keys])
+    w = w.drop_duplicates(["AccountID", "TransactionID"])
+    cols = [c for c in ["ID", "AccountID", "DeviceId", "DeviceID", "TransactionID", "TypeID", "CreateDate",
+                        "InUsageDispensingIOT", "InUsageDispensing", "UsageDispensingVolume"] if c in w.columns]
+    both = w[~w["InUsageDispensingIOT"] & ~w["InUsageDispensing"]]
+    for acc, g in both.groupby("AccountID"):
+        out.append(F("C25", "Investigate", acc, "Raw IOT dispensing not decoded (missing from UsageDispensing)",
+                     f"{len(g)} IOTData_FMS dispensing record(s) (TypeID 1) have no UsageDispensingIOT row and no "
+                     "UsageDispensing row for the same TransactionID (searched across the whole fetched range). The "
+                     "decoder should have written them to both, so this dispensing is missing from client reporting. "
+                     "Possible cause: decode/processing failure. Check the raw TelementryData for the volume.",
+                     affected=f"{len(g)} txns", count=len(g), evidence=g[cols]))
+    only_iot = w[~w["InUsageDispensingIOT"] & w["InUsageDispensing"]]
+    for acc, g in only_iot.groupby("AccountID"):
+        lit = pd.to_numeric(g["UsageDispensingVolume"], errors="coerce").sum()
+        out.append(F("C25", "Monitor", acc, "Raw IOT dispensing not decoded into UsageDispensingIOT",
+                     f"{len(g)} IOTData_FMS dispensing record(s) are in UsageDispensing (source of truth, "
+                     f"{lit:.2f} L) but have no UsageDispensingIOT backup row. Reporting is complete; the IOT backup "
+                     "layer has a gap. Possible cause: IOT decode failure.",
+                     affected=f"{lit:.2f} L / {len(g)} txns", count=len(g), evidence=g[cols]))
+    return out
+
+
+# Fixed statement of the dispensing data lineage (Hennie, 2026-10-06). Written
+# into findings.json; reports must print it as-is and never describe any other
+# table as the source of truth.
+SOURCE_HIERARCHY = [
+    {"layer": "Source of truth", "table": "UsageDispensing",
+     "note": "All dispensing figures in this report come from UsageDispensing."},
+    {"layer": "Backup 1", "table": "UsageDispensingIOT",
+     "note": "IOT data, decoded from IOTData_FMS. Used to verify UsageDispensing."},
+    {"layer": "Backup 2", "table": "UsageDispensingAndroid",
+     "note": "Android handheld log. Second verification layer."},
+    {"layer": "Raw", "table": "TempTableDataJson",
+     "note": "Raw payloads behind UsageDispensing (only accounts with Android devices)."},
+    {"layer": "Raw", "table": "IOTData_FMS",
+     "note": "Raw IOT stream. Decoded into UsageDispensingIOT, and into UsageDispensing when the "
+             "transaction is not already there."},
+]
+
 CHECK_REGISTRY = [
     ("C01", "Duplicate transactions (5 rules, grouped)", "fams-integrity algorithms/duplicate-detection.md"),
     ("C02", "TransactionID collision (same ID, different volume)", "fams-integrity algorithms/duplicate-detection.md"),
     ("C03", "Missing TransactionID (+ backfill candidate)", "fams-integrity anomaly-library/data-quality.md"),
     ("C04", "Unreconciled UnqTrID", "fams-integrity datasets/validation-rules.md"),
     ("C05", "InformationRec truncated/blank", "fams-integrity anomaly-library/data-quality.md"),
-    ("C06", "Unexplained dispensing (IOT+Android) / outage / known offload", "fams-daily-report classify_dispensing"),
-    ("C07", "Volume mismatch canonical vs IOT/Android", "fams-integrity algorithms/atg-reconciliation.md"),
-    ("C08", "Raw IOT/Android record missing from canonical", "fams-integrity anomaly-library/transaction-integrity.md"),
+    ("C06", "UsageDispensing row with no backup record (IOT/Android) / outage / known offload", "fams-daily-report classify_dispensing"),
+    ("C07", "Volume mismatch UsageDispensing vs backup (IOT/Android)", "fams-integrity algorithms/atg-reconciliation.md"),
+    ("C08", "Backup record (IOT/Android) missing from UsageDispensing", "fams-integrity anomaly-library/transaction-integrity.md"),
     ("C09", "Unknown IOTData_FMS TypeID", "fams-daily-report business-rules.md"),
     ("C10", "Recnumber: manual-entry candidates, 4627x series", "fams-integrity anomaly-library/equipment-integrity.md"),
     ("C11", "ProductID / ProdID = 0", "new (2026-10)"),
@@ -1250,4 +1315,5 @@ CHECK_REGISTRY = [
     ("C22", "Raw payload errors (TempTableDataJson)", "fams-integrity investigation/devices.md"),
     ("C23", "Volume outliers per equipment (IQR)", "fams-integrity algorithms/outlier-detection.md"),
     ("C24", "Allocation / cost-centre referential integrity", "fams-integrity business-rules/allocation-, cost-centre-validation.md"),
+    ("C25", "Raw IOT dispensing (IOTData_FMS) not decoded into UsageDispensingIOT / UsageDispensing", "fams-database-core data lineage (2026-10)"),
 ]

@@ -112,4 +112,4 @@ All in the code pack (`fams-integrity-agent/` in the repo; `/paperclip/fams-inte
 - `scripts/run_query.py` — run one read-only statement (`--sql`/`--sql-file`, `--param Name=VALUE` bound as parameters, `--csv`, `--proc` for the allowlisted SARS proc)
 - `sql/get_ReportinglogbookRev6SARS.sql` — production SARS proc, verbatim, as ground truth
 - `tests/` — guard + engine tests (`python -m pytest -q <pack>/tests`)
-- `scripts/integrity_checks.py` / `run_checks.py` — the daily automated subset of this skill (checks C01–C24); reuse on exported data with `run_checks.py --source dir --data-dir <exports>`
+- `scripts/integrity_checks.py` / `run_checks.py` — the daily automated subset of this skill (checks C01–C25); reuse on exported data with `run_checks.py --source dir --data-dir <exports>`

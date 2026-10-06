@@ -1,6 +1,13 @@
 # Field Definitions
 
-## UsageDispensing (canonical dispensing transaction log)
+Dispensing lineage (owner-confirmed 2026-10-06): `UsageDispensing` is the source of
+truth; `UsageDispensingIOT` is backup 1 and `UsageDispensingAndroid` backup 2;
+`TempTableDataJson` is the raw table behind `UsageDispensing` (Android accounts
+only); `IOTData_FMS` is the raw IOT table, decoded into `UsageDispensingIOT` and
+into `UsageDispensing` when the transaction isn't already there. Full table in
+FAMS Database Core → Table hierarchy.
+
+## UsageDispensing (source of truth for dispensing)
 - `ID` — row PK
 - `AccountID`, `StoreID`, `EquipmentID` — scoping keys
 - `Volume`, `OrigVolume` — reported volume / original-before-correction
@@ -15,16 +22,18 @@
 - `spare1` — scratch column, sometimes used to preserve a value before an
   UPDATE overwrites it (worth reusing as a defensive pattern)
 
-## UsageDispensingIOT
-IOT-device-reported version of a transaction. Joins to `UsageDispensing`
-and `UsageDispensingAndroid` on `(AccountID, TransactionID)`.
+## UsageDispensingIOT (backup 1)
+IOT data: decoded from `IOTData_FMS`. Verifies `UsageDispensing`, never
+replaces it in reporting. Joins to `UsageDispensing` and
+`UsageDispensingAndroid` on `(AccountID, TransactionID)`.
 
-## UsageDispensingAndroid
-Android-handheld log. Includes `Totalizer`, `TotalizerEnd` — meter-derived
+## UsageDispensingAndroid (backup 2)
+Android-handheld log; second verification layer. Includes `Totalizer`, `TotalizerEnd` — meter-derived
 volume is `ABS(TotalizerEnd - Totalizer)`.
 
-## TempTableDataJson
-Raw inbound JSON payloads keyed by `Macaddress` (→ `Store.Macaddress`),
+## TempTableDataJson (raw, behind UsageDispensing)
+Raw inbound JSON payloads for `UsageDispensing`, **only for accounts that have
+Android devices** (IOT-only accounts have nothing here). Keyed by `Macaddress` (→ `Store.Macaddress`),
 with `errorid` flag. JSON paths in use: `$.transactionID`, `$.oldLitres`,
 `$.DispensedVolume`, `$.Volume`.
 
@@ -123,8 +132,9 @@ formula applies (see `datasets/calculations.md`).
 ## IOTData_* raw telemetry tables (FMS, ATG, Notification, Error) and the
 ## RecordTypeId / TypeID scheme
 
-These four tables are the raw IOT device stream underneath
-`UsageDispensingIOT` (and the newer transfer/receiving cross-check work in
+These four tables are the raw IOT device stream. `IOTData_FMS` dispensing
+records are decoded into `UsageDispensingIOT` (backup 1) and into
+`UsageDispensing` when the transaction isn't already there (and the newer transfer/receiving cross-check work in
 `fams-daily-report`). Every row carries **two distinct codes** — conflating
 them was a real bug caught 2026-08-21 (see below), so keep them separate:
 

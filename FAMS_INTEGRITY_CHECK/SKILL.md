@@ -66,9 +66,9 @@ runs traces back to a file there or in `fams-daily-report` (the
 | C03 | Missing TransactionID (with backfill candidate from InformationRec) | `anomaly-library/data-quality.md` |
 | C04 | Unreconciled UnqTrID ('N/A'/NULL) | `datasets/validation-rules.md` |
 | C05 | InformationRec truncated ("Over Character Limit") / blank above 25% | `anomaly-library/data-quality.md` |
-| C06 | Unexplained dispensing (no IOT **and** no Android record); split out if inside a raw-feed outage; owner-confirmed offload equipment excluded; pending offload equipment and MAC-prefixed IDs annotated | `algorithms/atg-reconciliation.md`, `investigation/networking.md` |
-| C07 | Volume mismatch canonical vs IOT/Android > 1% | `algorithms/atg-reconciliation.md` |
-| C08 | IOT/Android record that never reached UsageDispensing/Transfer/Receiving (searched across the whole fetched range) | `anomaly-library/transaction-integrity.md` |
+| C06 | Unexplained dispensing: a UsageDispensing row with no backup record (no IOT **and** no Android); split out if inside a backup-feed outage; owner-confirmed offload equipment excluded; pending offload equipment and MAC-prefixed IDs annotated | `algorithms/atg-reconciliation.md`, `investigation/networking.md` |
+| C07 | Volume mismatch UsageDispensing vs backup (IOT, else Android) > 1% | `algorithms/atg-reconciliation.md` |
+| C08 | Backup (IOT/Android) record that never reached UsageDispensing/Transfer/Receiving (searched across the whole fetched range) | `anomaly-library/transaction-integrity.md` |
 | C09 | IOTData_FMS TypeID outside 1–4 | `datasets/field-definitions.md` |
 | C10 | Recnumber: manual-entry candidates; 4627x batch series (known pattern on known/pending offload equipment, Investigate elsewhere); blank Recnumber | `anomaly-library/equipment-integrity.md` |
 | C11 | ProductID / ProdID = 0 (or blank) in UsageDispensing, IOT, Android, Transfer, Receiving and IOTData_FMS TelementryData | `anomaly-library/data-quality.md` |
@@ -85,6 +85,7 @@ runs traces back to a file there or in `fams-daily-report` (the
 | C22 | Raw payload errors (TempTableDataJson.errorid ≠ 0) | `investigation/devices.md` |
 | C23 | Volume outliers per equipment (Q3 + 3×IQR on the unit's own history); Bridgeport 36941 known benign | `algorithms/outlier-detection.md` |
 | C24 | Allocation / cost-centre references that don't resolve or have no description | `business-rules/allocation-validation.md`, `cost-centre-validation.md` |
+| C25 | IOTData_FMS dispensing record (TypeID 1) not decoded: missing from UsageDispensingIOT **and** UsageDispensing → Investigate; in UsageDispensing but not UsageDispensingIOT → Monitor (records in the last `decode_grace_minutes` of the window skipped) | FAMS Database Core → Table hierarchy |
 
 **Still out of scope for this automated daily job**: fraud indicators,
 employee-level behavioural analysis, seasonal and predictive anomaly
@@ -260,7 +261,7 @@ fine; a Unicode arrow is not.
 - **Reconciliation %** — `reconciliation_pct`. State
   `reconciliation_numerator_L` / `reconciliation_denominator_L` every time. If
   `of_which_during_raw_feed_outage_L` > 0, say how much of the unexplained
-  volume falls inside a raw-feed outage.
+  volume falls inside a backup-feed outage (IOT and Android both silent).
 - **Sites with possible fuel loss** — `sites_with_possible_fuel_loss`.
 - **Sites with communication failures** — `sites_with_communication_failures`
   (devices over the 10-per-window tolerance).
@@ -302,8 +303,12 @@ outliers), the count of sites with a possible-fuel-loss finding (must match
 Quick Stats), and a line confirming no financial values/individuals/due dates
 are assigned per reporting policy.
 
-**07 Data Quality & Methodology Note** — from `data_sources`, `data_gaps` and
-`checks_run`: which sources this run had and how many rows, and for anything
+**07 Data Quality & Methodology Note** — start with the data lineage from
+`source_hierarchy`, printed as-is (layer, table, note): `UsageDispensing` is the
+source of truth for every dispensing figure, `UsageDispensingIOT` and
+`UsageDispensingAndroid` are backups, `TempTableDataJson` and `IOTData_FMS` are
+raw. Never describe any other table as the source of truth, primary source or
+main source. Then, from `data_sources`, `data_gaps` and `checks_run`: which sources this run had and how many rows, and for anything
 missing or any check that failed, say so explicitly — the correct posture is
 "unverifiable with current data", never silence or a false all-clear. Also
 state the window boundary used for this client.
@@ -351,6 +356,12 @@ and a recommended next step.
   add its pattern to config (with the owner's confirmation).
 
 ### Language discipline
+
+`UsageDispensing` is the source of truth for dispensing; IOT and Android are
+backups (FAMS Database Core → Table hierarchy). Never call `UsageDispensingIOT`
+or any other table the source of truth, primary or main source, and never call
+IOT/Android records "raw": the raw tables are `TempTableDataJson` and
+`IOTData_FMS`.
 
 Always say "possible cause" unless proven. Never assert theft, fraud, or
 confirmed loss from tank/telemetry data alone — only "possible unexplained

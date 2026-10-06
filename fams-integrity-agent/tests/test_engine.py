@@ -107,7 +107,19 @@ def result(tmp_path_factory):
     for tx, v in (("DUPX1", 77.7), ("DUPX2", 77.7), ("NAX1", 60.0), ("NAX2", 60.0), ("68B6B33CE0186AA38F90", 900.0)):
         iot.append({"ID": 1100 + len(iot), "AccountID": ACC, "TransactionID": tx, "DeviceID": "112233445566",
                     "ProductID": 1, "TypeID": 1, "Volume": v, "Createdate": T(5)})
-    # raw IOT record never imported into canonical
+    # C25: raw IOTData_FMS dispensing never decoded anywhere, and one decoded into UsageDispensing only
+    fms.append({"ID": 980, "AccountID": ACC, "TransactionID": "FMSLOST", "DeviceId": "112233445566", "TypeID": 1,
+                "CreateDate": T(17), "TotaliserFromComms": 0, "TelementryData": "{}"})
+    fms.append({"ID": 981, "AccountID": ACC, "TransactionID": "FMSUDONLY", "DeviceId": "112233445566", "TypeID": 1,
+                "CreateDate": T(18), "TotaliserFromComms": 0, "TelementryData": "{}"})
+    disp.append(disp_row(413, "FMSUDONLY", 12.0, T(18), eq=708))
+    android.append({"ID": 890, "AccountID": ACC, "StoreID": 10, "ProductID": 1, "TrailerMac": "T9",
+                    "InformationMac": "AABBCCDDEEFF", "TransactionID": "FMSUDONLY", "Volume": 12.0,
+                    "Createdate": T(18), "Totalizer": 0, "TotalizerEnd": 0})
+    # FMS record inside the decode grace period at the window end: not checked
+    fms.append({"ID": 982, "AccountID": ACC, "TransactionID": "FMSLATE", "DeviceId": "112233445566", "TypeID": 1,
+                "CreateDate": W0 + pd.Timedelta(hours=47, minutes=50), "TotaliserFromComms": 0, "TelementryData": "{}"})
+    # backup IOT record never imported into UsageDispensing
     iot.append({"ID": 1300, "AccountID": ACC, "TransactionID": "LOST1", "DeviceID": "112233445566", "ProductID": 1,
                 "TypeID": 1, "Volume": 120.0, "Createdate": T(14)})
     # notifications: BTLinkLost on TXA03 (the short transaction) + NoFlow without completion
@@ -294,3 +306,20 @@ def test_per_day_site_metrics(result):
     assert days[0]["tanks"] and days[0]["atg_pct"] is not None
     quiet = doc["days"]["9002"]
     assert quiet[0]["usage_pct"] is None and quiet[0]["dispensed_L"] == 0
+
+
+def test_c25_fms_decode_gap(result):
+    doc, out = result
+    inv = cats(doc, "C25", "Investigate")
+    mon = cats(doc, "C25", "Monitor")
+    assert len(inv) == 1 and len(mon) == 1
+    assert set(ev(out, inv[0])["TransactionID"]) == {"FMSLOST"}
+    assert set(ev(out, mon[0])["TransactionID"]) == {"FMSUDONLY"}
+    assert mon[0]["affected"].startswith("12.00 L")
+
+
+def test_source_hierarchy_in_findings(result):
+    doc, _ = result
+    h = doc["source_hierarchy"]
+    assert h[0]["layer"] == "Source of truth" and h[0]["table"] == "UsageDispensing"
+    assert [x["table"] for x in h[1:3]] == ["UsageDispensingIOT", "UsageDispensingAndroid"]

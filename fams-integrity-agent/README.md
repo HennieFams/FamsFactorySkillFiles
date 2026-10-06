@@ -8,7 +8,7 @@ installed into the Paperclip container, the same way `fams-support-agent` is.
 | Path | Purpose |
 |---|---|
 | `scripts/fams_db.py` | The only DB access layer: env-var credentials, lexing read-only guard, always-rollback, `ApplicationIntent=ReadOnly` |
-| `scripts/run_checks.py` | Daily engine: windows per client, data pull, checks C01–C24, writes `findings.json` + evidence CSVs |
+| `scripts/run_checks.py` | Daily engine: windows per client, data pull, checks C01–C25, writes `findings.json` + evidence CSVs |
 | `scripts/integrity_checks.py` | The checks (pure functions over DataFrames) |
 | `scripts/fams_sources.py` | Live-DB source and export-directory source |
 | `scripts/send_reports.py` | Emails each client PDF to the four recipients (config `email`), logs to `email_log.json`, never double-sends |

@@ -22,7 +22,7 @@
      the day-N export the whole time.
   3. Cross-check the recorded volume against the true meter reading using
      the totalizer-diff method in `datasets/calculations.md` § Actual
-     volume, sourced from `UsageDispensingAndroid` (the raw device table)
+     volume, sourced from `UsageDispensingAndroid` (backup 2, which carries the meter readings)
      — **not** `UsageDispensing`'s own Totalizer columns, and **not**
      grouped by `EquipmentID` (see `business-rules/nozzle-validation.md`
      for why).

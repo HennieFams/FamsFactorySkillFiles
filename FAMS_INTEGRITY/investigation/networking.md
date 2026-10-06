@@ -3,7 +3,7 @@
 ## Detecting a telemetry outage (device/connectivity gap)
 
 **Confirmed pattern, twice (Estcourt Sept 12, ~32hr gap; Richards Bay
-Store 2225 Sept 12, ~2h21m gap):** a site's raw device tables
+Store 2225 Sept 12, ~2h21m gap):** a site's backup and telemetry tables
 (`UsageDispensingAndroid`, `UsageDispensingIOT`, `Stock`) can simply stop
 reporting for hours while `UsageDispensing` keeps logging transactions
 normally via a different path. This produces a large, alarming-looking
@@ -11,7 +11,7 @@ normally via a different path. This produces a large, alarming-looking
 a device/connectivity outage, not lost fuel, fraud, or data corruption.
 
 **Diagnostic method:**
-1. Pull the raw device table's own row timestamps for the account/store
+1. Pull the backup/telemetry table's own row timestamps for the account/store
    in question across the *full* available window (not just inside the
    reporting cutoff).
 2. Look for a gap between consecutive `Createdate`/`CreateDate` values

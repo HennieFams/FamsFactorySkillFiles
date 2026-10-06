@@ -18,24 +18,44 @@ SQL Server (Azure SQL). Read this before writing a single query against FAMS dat
 
 ## Table hierarchy
 
-FAMS tables fall into three roles, and picking the wrong one silently produces wrong
-numbers:
+Dispensing data has one source of truth, two backup layers and two raw tables.
+Picking the wrong one silently produces wrong numbers, and calling a backup the
+source of truth is a reporting error (owner-confirmed, 2026-10-06):
 
-- **Canonical** — `UsageDispensing`. The agreed source for a dispensing transaction:
-  `ID` (PK), `AccountID`/`StoreID`/`EquipmentID` (scoping), `Volume`/`OrigVolume`,
-  `Createdate`, `TransactionID`, `UnqTrID`, `InformationRec` (JSON), `Recnumber`,
-  `AllocationID`/`AllocationID2`, `EquipmentCostCentreID`, `ProductID`, `Hour`/`KM`.
-- **Decoded** — `UsageDispensingIOT` (IOT-device-reported version; joins to
-  `UsageDispensing` and `UsageDispensingAndroid` on `(AccountID, TransactionID)`),
-  `UsageDispensingAndroid` (Android-handheld log; volume via
-  `ABS(TotalizerEnd - Totalizer)`), and the raw telemetry tables `IOTData_FMS` /
-  `IOTData_ATG` / `IOTData_Notification` / `IOTData_Error`, which carry `RecordTypeId`
-  and `TypeID` as decoded columns (not just inside the JSON blob) alongside
-  `DeviceId`/`DeviceAlias` and a `TelementryData` JSON blob.
-- **Raw fallback** — `TempTableDataJson`. Raw inbound JSON payloads keyed by
-  `Macaddress` (→ `Store.Macaddress`), with an `errorid` flag. Used only when the
-  canonical and decoded rows are absent; not consumed by the automated daily check,
-  useful for manual investigation of a specific disputed transaction.
+| Layer | Table | Role |
+|---|---|---|
+| **Source of truth** | `UsageDispensing` | The dispensing transaction. Every reported dispensing figure comes from here. |
+| Backup 1 | `UsageDispensingIOT` | IOT data, decoded from `IOTData_FMS`. Verifies `UsageDispensing`; never replaces it in reporting. |
+| Backup 2 | `UsageDispensingAndroid` | Android handheld log. Second verification layer, and the table that carries the meter readings (`Totalizer`/`TotalizerEnd`). |
+| Raw | `TempTableDataJson` | Raw inbound payloads behind `UsageDispensing`. **Only for accounts that have Android devices.** Keyed by `Macaddress` (→ `Store.Macaddress`), `errorid` flag. |
+| Raw | `IOTData_FMS` | Raw IOT dispensing stream. Decoded into `UsageDispensingIOT`, **and into `UsageDispensing` only when that transaction isn't already there**. |
+
+Flow:
+
+```
+Android device -> TempTableDataJson (raw) -> UsageDispensing (truth)
+               -> UsageDispensingAndroid (backup 2)
+IOT device     -> IOTData_FMS (raw) -> UsageDispensingIOT (backup 1)
+                                    -> UsageDispensing (only if not already present)
+```
+
+What follows from this:
+
+- Volumes, totals and reconciliation % are computed from `UsageDispensing`.
+- A `UsageDispensing` row with no IOT or Android record still counts; what's
+  missing is its backup evidence ("unexplained", check C06).
+- An IOT or Android record with no `UsageDispensing` row is fuel missing from
+  client reporting (C08). An `IOTData_FMS` dispensing record that never reached
+  `UsageDispensingIOT` or `UsageDispensing` is a decode gap (C25).
+- When `UsageDispensing` and a backup disagree on volume, `UsageDispensing`
+  stands in the report and the difference is a finding to explain (C07). Use
+  the raw table (`TempTableDataJson` for Android accounts, `IOTData_FMS` for
+  IOT) to settle a disputed transaction.
+- The tables join on `(AccountID, TransactionID)`. Android volume can also be
+  derived from the meter: `ABS(TotalizerEnd - Totalizer)`.
+- The other IOT telemetry tables (`IOTData_ATG`, `IOTData_Notification`,
+  `IOTData_Error`) carry `RecordTypeId` and `TypeID` as decoded columns
+  alongside `DeviceId`/`DeviceAlias` and a `TelementryData` JSON blob.
 
 Supporting tables: `Account`/`Store`/`Equipment` (Account.name searchable via LIKE;
 Store.AccountID and Equipment.AccountID are FKs; Equipment.[tag] is the physical/RFID

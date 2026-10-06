@@ -8,7 +8,7 @@ a single `EquipmentID` can appear across rows that don't actually share a
 physical meter.
 
 The confirmed reliable key for "same physical nozzle" is, from
-`UsageDispensingAndroid` (the raw device table):
+`UsageDispensingAndroid` (backup 2, which carries the meter readings):
 
 ```
 (StoreID, ProductID, TrailerMac, InformationMac)

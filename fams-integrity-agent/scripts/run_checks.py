@@ -149,7 +149,7 @@ def finding_days(ev, slices):
 def build_days(d, cfg, accts, slices, disp_cls, serial, out_dir):
     """Per account, per operational day: KPIs, tank rows and the findings that touch that day.
     Feeds the per-site daily pages on the Notion client portal (publish_notion.py)."""
-    unexpl = {"Unexplained - no raw evidence", "Missing TransactionID (see C03)"}
+    unexpl = {"Unexplained - no backup record", "Missing TransactionID (see C03)"}
     c21 = []
     for f in serial:
         if f["check"] == "C21" and f["status"] == "Investigate" and f.get("evidence_file"):
@@ -267,6 +267,7 @@ def run_client(src, client, cfg, run_time_sast, out_root):
     findings += do("C22", ic.check_payload_errors) or []
     findings += do("C23", ic.check_outliers) or []
     findings += do("C24", ic.check_fk) or []
+    findings += do("C25", ic.check_fms_decode) or []
     findings = [f for f in findings if f["account_id"] in accts or f["account_id"] is None]
 
     # ---- KPIs (exact definitions from SKILL.md) ----
@@ -276,7 +277,7 @@ def run_client(src, client, cfg, run_time_sast, out_root):
         raw_total = float(pd.to_numeric(dc["Volume"], errors="coerce").clip(lower=0).sum()) if len(dc) else 0.0
         dup_excess = sum(f["litres"] or 0 for f in fs if f["check"] == "C01")
         total = raw_total - dup_excess
-        # unexplained = no raw evidence (C06, incl. outage share) + rows with no TransactionID at all (C03)
+        # unexplained = no backup record (C06, incl. outage share) + rows with no TransactionID at all (C03)
         unexpl = sum(f["litres"] or 0 for f in fs if f["check"] in ("C06", "C03") and f["status"] != "No action required")
         outage = sum(f["litres"] or 0 for f in fs if f["check"] == "C06" and f["status"] == "Monitor")
         mism = sum(f["litres"] or 0 for f in fs if f["check"] == "C07")
@@ -358,6 +359,7 @@ def run_client(src, client, cfg, run_time_sast, out_root):
             "report_date": we_s.strftime("%Y-%m-%d"),
             "db_timezone_assumed": str(db_tz),
         },
+        "source_hierarchy": ic.SOURCE_HIERARCHY,
         "accounts": [{"AccountID": a, "Account": names[a]} for a in accts],
         "kpis": kpis,
         "portfolio": portfolio,
