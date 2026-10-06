@@ -97,8 +97,10 @@ skills under `FAMS_VUE_AGENTS/` appear: `fams-ui-standards`, `fams-portal-develo
 `fams-atg-communications-specialized`, `fams-quick-report-specialized`,
 `fams-dispensing-specialized`. (If the importer only looks one folder deep and they don't
 appear, tell Claude — the folders can be moved up a level without changing the files.
-If it rejects `fams-dispensing` because of its `reference/` files, skip it for now; the
-agents still read it from `/paperclip/fams-vue-agents/skills/`.)
+`fams-dispensing`'s four `reference/` example files are kept in
+`fams-vue-agents/skill-assets/` because Paperclip rejects skills that contain code; the
+installer puts them back at `/paperclip/fams-vue-agents/skills/fams-dispensing/reference/`,
+where the unchanged SKILL.md points.)
 
 ## 3. Create the five agents in Paperclip
 

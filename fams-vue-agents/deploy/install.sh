@@ -63,6 +63,9 @@ docker exec -u 0 -e H="$H" "$C" bash -euo pipefail -c '
   cp -r /tmp/fva-src/agent     "$H/agent"
   cp -r /tmp/fva-src/templates "$H/templates"
   cp -r /tmp/fva-skills        "$H/skills"
+  # Paperclip rejects skills that contain code, so fams-dispensing/reference/ lives in
+  # skill-assets/ in git and is put back here, where the (unchanged) SKILL.md says it is.
+  cp -r /tmp/fva-src/skill-assets/. "$H/skills/"
   cp /tmp/fva-src/config/config.json "$H/config/config.json"
   cp /tmp/fva-src/deploy/workspace/claude-settings.json "$H/workspace/.claude/settings.json"
   cp /tmp/fva-src/README.md "$H/README.md"
