@@ -1,7 +1,7 @@
 # ATG / Cross-Source Reconciliation
 
 Compares `UsageDispensing` (source of truth) with its backups
-`UsageDispensingIOT` (backup 1) and `UsageDispensingAndroid` (backup 2) for the
+`UsageDispensingIOT` and `UsageDispensingAndroid` (both backups) for the
 same TransactionID — the primary integrity signal in this system. When they
 disagree, `UsageDispensing` stands in reporting and the difference is a finding.
 

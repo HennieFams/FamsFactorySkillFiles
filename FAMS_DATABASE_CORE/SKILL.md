@@ -18,24 +18,37 @@ SQL Server (Azure SQL). Read this before writing a single query against FAMS dat
 
 ## Table hierarchy
 
-Dispensing data has one source of truth, two backup layers and two raw tables.
-Picking the wrong one silently produces wrong numbers, and calling a backup the
-source of truth is a reporting error (owner-confirmed, 2026-10-06):
+Each kind of data has one source of truth; the other tables are backups or raw
+input. Picking the wrong one silently produces wrong numbers, and calling a
+backup or raw table the source of truth is a reporting error (owner-confirmed,
+2026-10-06):
 
 | Layer | Table | Role |
 |---|---|---|
-| **Source of truth** | `UsageDispensing` | The dispensing transaction. Every reported dispensing figure comes from here. |
-| Backup 1 | `UsageDispensingIOT` | IOT data, decoded from `IOTData_FMS`. Verifies `UsageDispensing`; never replaces it in reporting. |
-| Backup 2 | `UsageDispensingAndroid` | Android handheld log. Second verification layer, and the table that carries the meter readings (`Totalizer`/`TotalizerEnd`). |
-| Raw | `TempTableDataJson` | Raw inbound payloads behind `UsageDispensing`. **Only for accounts that have Android devices.** Keyed by `Macaddress` (→ `Store.Macaddress`), `errorid` flag. |
-| Raw | `IOTData_FMS` | Raw IOT dispensing stream. Decoded into `UsageDispensingIOT`, **and into `UsageDispensing` only when that transaction isn't already there**. |
+| **Source of truth** | `UsageDispensing` | All dispensing transactions. Every reported dispensing figure comes from here. |
+| **Source of truth** | `UsageTransfer` | All transfer transactions (dispensing into a bowser or another tank). |
+| **Source of truth** | `UsageReceiving` | All receiving / offloading transactions. |
+| **Source of truth** | `Stock` | All tank levels. |
+| Backup | `UsageDispensingAndroid` | Dispensing backup from the Android control unit (links the Android device with the fuel pump). Carries the meter readings (`Totalizer`/`TotalizerEnd`). |
+| Backup | `UsageDispensingIOT` | Dispensing backup from the IOT device, decoded from `IOTData_FMS`. |
+| Raw | `TempTableDataJson` | Raw Android dispensing payloads behind `UsageDispensing`; the main raw source for Android accounts. Keyed by `Macaddress` (→ `Store.Macaddress`), `errorid` flag. |
+| Raw | `IOTData_FMS` | Raw IOT dispensing records. Decoded into `UsageDispensingIOT`, **and into `UsageDispensing` only when that transaction isn't already there**. |
+| Raw | `IOTData_ATG` | Raw IOT tank levels (behind `Stock`). |
+| Raw | `IOTData_Notification` | Raw IOT device alerts. |
+| Raw | `IOTData_Error` | Raw IOT tank errors. |
 
-Flow:
+**Android accounts** (`android_accounts` in the integrity agent's
+`config.json`): all ShipTech except 365 TWK Agri Underberg and 397 PMB Storage,
+plus RAM Couriers (390, 391, 415 Bloemfontein). Only these have
+`TempTableDataJson` payloads and an Android backup; TWK, PMB Storage and PMC
+Phalaborwa are IOT-only. New Android sites must be added to that list.
+
+Dispensing flow:
 
 ```
 Android device -> TempTableDataJson (raw) -> UsageDispensing (truth)
-               -> UsageDispensingAndroid (backup 2)
-IOT device     -> IOTData_FMS (raw) -> UsageDispensingIOT (backup 1)
+               -> UsageDispensingAndroid (backup)
+IOT device     -> IOTData_FMS (raw) -> UsageDispensingIOT (backup)
                                     -> UsageDispensing (only if not already present)
 ```
 
@@ -46,15 +59,18 @@ What follows from this:
   missing is its backup evidence ("unexplained", check C06).
 - An IOT or Android record with no `UsageDispensing` row is fuel missing from
   client reporting (C08). An `IOTData_FMS` dispensing record that never reached
-  `UsageDispensingIOT` or `UsageDispensing` is a decode gap (C25).
+  `UsageDispensingIOT` or `UsageDispensing` is a decode gap (C25), and a
+  `TempTableDataJson` payload on an Android account with no `UsageDispensing`
+  (or Transfer/Receiving) row is a processing gap (C26).
 - When `UsageDispensing` and a backup disagree on volume, `UsageDispensing`
   stands in the report and the difference is a finding to explain (C07). Use
   the raw table (`TempTableDataJson` for Android accounts, `IOTData_FMS` for
   IOT) to settle a disputed transaction.
 - The tables join on `(AccountID, TransactionID)`. Android volume can also be
   derived from the meter: `ABS(TotalizerEnd - Totalizer)`.
-- The other IOT telemetry tables (`IOTData_ATG`, `IOTData_Notification`,
-  `IOTData_Error`) carry `RecordTypeId` and `TypeID` as decoded columns
+- Tank figures come from `Stock`, transfers from `UsageTransfer` and
+  receiving/offloading from `UsageReceiving`; the IOT telemetry tables
+  (`IOTData_ATG`, `IOTData_Notification`, `IOTData_Error`) are raw input and carry `RecordTypeId` and `TypeID` as decoded columns
   alongside `DeviceId`/`DeviceAlias` and a `TelementryData` JSON blob.
 
 Supporting tables: `Account`/`Store`/`Equipment` (Account.name searchable via LIKE;

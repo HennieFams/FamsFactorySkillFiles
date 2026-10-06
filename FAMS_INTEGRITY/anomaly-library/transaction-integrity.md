@@ -4,8 +4,8 @@ Checks that a transaction's reported volume is internally consistent
 across every source that recorded it:
 
 - `UsageDispensing.Volume` — **source of truth** (what the client is reported)
-- `UsageDispensingIOT.Volume` — backup 1 (decoded from `IOTData_FMS`)
-- `ABS(UsageDispensingAndroid.TotalizerEnd - UsageDispensingAndroid.Totalizer)` — backup 2 (meter-derived)
+- `UsageDispensingIOT.Volume` — backup from the IOT device (decoded from `IOTData_FMS`)
+- `ABS(UsageDispensingAndroid.TotalizerEnd - UsageDispensingAndroid.Totalizer)` — backup from the Android control unit (meter-derived)
 
 A backup that disagrees doesn't override `UsageDispensing`; the difference is
 the finding. A backup record with no `UsageDispensing` row is fuel missing from

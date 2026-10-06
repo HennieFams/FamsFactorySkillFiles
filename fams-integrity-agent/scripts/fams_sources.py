@@ -137,6 +137,26 @@ class DbSource:
                f"AND [{cols['createdate']}] >= ? AND [{cols['createdate']}] < ? AND [{cols['errorid']}] <> 0")
         return normalise(self.db.query_df(sql, list(macs) + [start.to_pydatetime(), end.to_pydatetime()]))
 
+    def temp_json_payloads(self, macs, start, end):
+        """Android raw payloads (errorid = 0) with TransactionID/Volume extracted in SQL.
+        The transactionID key spelling varies per account, so all three are tried."""
+        cols = {c.lower(): c for c in self.columns("TempTableDataJson")}
+        if not macs or not {"macaddress", "createdate", "jsondata"} <= set(cols):
+            return None
+        j = f"[{cols['jsondata']}]"
+        jv = lambda path: f"JSON_VALUE({j}, '{path}')"  # noqa: E731
+        tx = f"COALESCE({jv('$.transactionID')}, {jv('$.transactionId')}, {jv('$.TransactionID')})"
+        vol = f"COALESCE({jv('$.DispensedVolume')}, {jv('$.Volume')})"
+        idc = f"[{cols['id']}] AS ID, " if "id" in cols else ""
+        sql = (f"SELECT {idc}[{cols['macaddress']}] AS Macaddress, [{cols['createdate']}] AS CreateDate, "
+               f"CASE WHEN ISJSON({j}) = 1 THEN {tx} END AS TransactionID, "
+               f"CASE WHEN ISJSON({j}) = 1 THEN {vol} END AS Volume "
+               f"FROM [TempTableDataJson] WHERE [{cols['macaddress']}] IN ({', '.join('?' for _ in macs)}) "
+               f"AND [{cols['createdate']}] >= ? AND [{cols['createdate']}] < ?")
+        if "errorid" in cols:
+            sql += f" AND ([{cols['errorid']}] = 0 OR [{cols['errorid']}] IS NULL)"
+        return normalise(self.db.query_df(sql, list(macs) + [start.to_pydatetime(), end.to_pydatetime()]))
+
     def fk_checks(self, account_ids, start, end):
         """Allocation / cost-centre referential checks (business-rules/ in fams-integrity)."""
         out = {}
@@ -220,6 +240,26 @@ class DirSource:
             return None
         return df[df["Macaddress"].isin(macs) & (df["CreateDate"] >= start) & (df["CreateDate"] < end)
                   & (df["ErrorID"] != 0)].copy()
+
+    def temp_json_payloads(self, macs, start, end):
+        df = self._load("TempTableDataJson")
+        if df is None or not {"Macaddress", "CreateDate"} <= set(df.columns):
+            return None
+        df = df[df["Macaddress"].isin(macs) & (df["CreateDate"] >= start) & (df["CreateDate"] < end)].copy()
+        if "ErrorID" in df.columns:
+            df = df[df["ErrorID"].fillna(0) == 0]
+        if "Jsondata" in df.columns and "TransactionID" not in df.columns:
+            import json as _json
+
+            def pick(raw, keys):
+                try:
+                    o = _json.loads(raw)
+                except Exception:
+                    return None
+                return next((o[k] for k in keys if isinstance(o, dict) and o.get(k) is not None), None)
+            df["TransactionID"] = df["Jsondata"].map(lambda r: pick(r, ["transactionID", "transactionId", "TransactionID"]))
+            df["Volume"] = df["Jsondata"].map(lambda r: pick(r, ["DispensedVolume", "Volume"]))
+        return df
 
     def fk_checks(self, account_ids, start, end):
         return {}

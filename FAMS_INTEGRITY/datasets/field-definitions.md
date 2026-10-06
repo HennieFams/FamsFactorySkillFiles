@@ -1,7 +1,9 @@
 # Field Definitions
 
-Dispensing lineage (owner-confirmed 2026-10-06): `UsageDispensing` is the source of
-truth; `UsageDispensingIOT` is backup 1 and `UsageDispensingAndroid` backup 2;
+Data lineage (owner-confirmed 2026-10-06): sources of truth are `UsageDispensing`
+(dispensing), `UsageTransfer` (transfers), `UsageReceiving` (receiving/offloading)
+and `Stock` (tank levels). `UsageDispensingAndroid` and `UsageDispensingIOT` are
+dispensing backups; `IOTData_ATG` / `_Notification` / `_Error` are raw IOT input;
 `TempTableDataJson` is the raw table behind `UsageDispensing` (Android accounts
 only); `IOTData_FMS` is the raw IOT table, decoded into `UsageDispensingIOT` and
 into `UsageDispensing` when the transaction isn't already there. Full table in
@@ -22,18 +24,20 @@ FAMS Database Core → Table hierarchy.
 - `spare1` — scratch column, sometimes used to preserve a value before an
   UPDATE overwrites it (worth reusing as a defensive pattern)
 
-## UsageDispensingIOT (backup 1)
+## UsageDispensingIOT (backup, from the IOT device)
 IOT data: decoded from `IOTData_FMS`. Verifies `UsageDispensing`, never
 replaces it in reporting. Joins to `UsageDispensing` and
 `UsageDispensingAndroid` on `(AccountID, TransactionID)`.
 
-## UsageDispensingAndroid (backup 2)
-Android-handheld log; second verification layer. Includes `Totalizer`, `TotalizerEnd` — meter-derived
+## UsageDispensingAndroid (backup, from the Android control unit)
+From the Android control unit that links the Android device with the fuel pump. Includes `Totalizer`, `TotalizerEnd` — meter-derived
 volume is `ABS(TotalizerEnd - Totalizer)`.
 
 ## TempTableDataJson (raw, behind UsageDispensing)
 Raw inbound JSON payloads for `UsageDispensing`, **only for accounts that have
-Android devices** (IOT-only accounts have nothing here). Keyed by `Macaddress` (→ `Store.Macaddress`),
+Android devices** — the main raw source for those (ShipTech except 365 TWK and
+397 PMB Storage, plus RAM Couriers; list in `config.json → android_accounts`).
+IOT-only accounts have nothing here. Keyed by `Macaddress` (→ `Store.Macaddress`),
 with `errorid` flag. JSON paths in use: `$.transactionID`, `$.oldLitres`,
 `$.DispensedVolume`, `$.Volume`.
 
@@ -133,7 +137,7 @@ formula applies (see `datasets/calculations.md`).
 ## RecordTypeId / TypeID scheme
 
 These four tables are the raw IOT device stream. `IOTData_FMS` dispensing
-records are decoded into `UsageDispensingIOT` (backup 1) and into
+records are decoded into `UsageDispensingIOT` (backup) and into
 `UsageDispensing` when the transaction isn't already there (and the newer transfer/receiving cross-check work in
 `fams-daily-report`). Every row carries **two distinct codes** — conflating
 them was a real bug caught 2026-08-21 (see below), so keep them separate:

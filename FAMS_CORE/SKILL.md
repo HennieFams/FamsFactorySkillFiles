@@ -65,7 +65,7 @@ listed, human-approved per-client exception:
 
 | Client | Boundary | Approved | Where it's set |
 |---|---|---|---|
-| RAM Couriers (390, 391) | 00:00 SAST | Hennie, 2026-10-02 | `fams-integrity-agent/config/config.json` (`boundary_hour_sast`) |
+| RAM Couriers (390, 391, 415) | 00:00 SAST | Hennie, 2026-10-02 | `fams-integrity-agent/config/config.json` (`boundary_hour_sast`) |
 | PMC Phalaborwa (285) | 00:00 SAST | Hennie, 2026-10-02 | same |
 
 An agent must not add a client to this table on its own judgement.

@@ -108,11 +108,23 @@ def load(src, accts, cfg, ws, we, fetch_end, lb_start, gaps):
     d.stores = safe(gaps, "Store", src.stores, accts)
     macs = sorted(set(d.stores["Macaddress"].dropna().astype(str))) if d.stores is not None and "Macaddress" in d.stores.columns else []
     d.tempjson = safe(gaps, "TempTableDataJson", src.temp_json_errors, macs, ws, we) if macs else None
+    # Android accounts: their raw payloads in TempTableDataJson are the raw source behind UsageDispensing (C26)
+    d.android_accounts = {int(a) for a in cfg.get("android_accounts", [])} & {int(a) for a in accts}
+    d.tempjson_payloads = None
+    if d.android_accounts and d.stores is not None and has_cols(d.stores, "Macaddress", "AccountID"):
+        amacs = sorted(set(d.stores[d.stores["AccountID"].isin(d.android_accounts)]["Macaddress"].dropna().astype(str)))
+        if amacs:
+            d.tempjson_payloads = safe(gaps, "TempTableDataJson (payloads)", src.temp_json_payloads, amacs, ws, we)
+            d.available["TempTableDataJson"] = None if d.tempjson_payloads is None else int(len(d.tempjson_payloads))
     d.fk = safe(gaps, "Allocation/CostCentre", src.fk_checks, accts, ws, we) or {}
     if src.kind == "directory":
         gaps.append({"scope": "Allocation / EquipmentCostCentre", "gap": "Referential checks need the live database",
                      "effect": "C24 not run in directory mode."})
     return d
+
+
+def has_cols(df, *cols):
+    return df is not None and all(c in df.columns for c in cols)
 
 
 TIME_COLS = ("CreateDate", "NextCreateDate", "GapStart", "GapEnd", "LastSeen", "Opening_Time", "Closing_Time")
@@ -268,6 +280,7 @@ def run_client(src, client, cfg, run_time_sast, out_root):
     findings += do("C23", ic.check_outliers) or []
     findings += do("C24", ic.check_fk) or []
     findings += do("C25", ic.check_fms_decode) or []
+    findings += do("C26", ic.check_android_raw) or []
     findings = [f for f in findings if f["account_id"] in accts or f["account_id"] is None]
 
     # ---- KPIs (exact definitions from SKILL.md) ----

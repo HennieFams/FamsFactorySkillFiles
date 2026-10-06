@@ -62,7 +62,8 @@
       "boundary_hour_sast": 0,
       "accounts": {
         "390": "RAM Couriers - Belville",
-        "391": "RAM Couriers - Isando"
+        "391": "RAM Couriers - Isando",
+        "415": "RAM Couriers - Bloemfontein"
       }
     },
     {
@@ -73,6 +74,27 @@
         "285": "PMC Phalaborwa"
       }
     }
+  ],
+  "android_accounts_note": "Accounts with Android devices: TempTableDataJson is their raw dispensing source (C26). All ShipTech except 365 TWK Agri Underberg and 397 PMB Storage, plus RAM Couriers. Add new Android sites here.",
+  "android_accounts": [
+    321,
+    328,
+    345,
+    346,
+    350,
+    353,
+    354,
+    360,
+    361,
+    373,
+    378,
+    383,
+    389,
+    394,
+    404,
+    390,
+    391,
+    415
   ],
   "known_offload_equipment_ids": {
     "328": [

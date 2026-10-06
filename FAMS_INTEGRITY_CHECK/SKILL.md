@@ -86,6 +86,7 @@ runs traces back to a file there or in `fams-daily-report` (the
 | C23 | Volume outliers per equipment (Q3 + 3×IQR on the unit's own history); Bridgeport 36941 known benign | `algorithms/outlier-detection.md` |
 | C24 | Allocation / cost-centre references that don't resolve or have no description | `business-rules/allocation-validation.md`, `cost-centre-validation.md` |
 | C25 | IOTData_FMS dispensing record (TypeID 1) not decoded: missing from UsageDispensingIOT **and** UsageDispensing → Investigate; in UsageDispensing but not UsageDispensingIOT → Monitor (records in the last `decode_grace_minutes` of the window skipped) | FAMS Database Core → Table hierarchy |
+| C26 | Android accounts only: `TempTableDataJson` payload (errorid 0) whose TransactionID is in none of UsageDispensing / UsageTransfer / UsageReceiving → Investigate (last `decode_grace_minutes` skipped) | FAMS Database Core → Table hierarchy |
 
 **Still out of scope for this automated daily job**: fraud indicators,
 employee-level behavioural analysis, seasonal and predictive anomaly
@@ -105,9 +106,17 @@ All three clients live in one shared database; the engine loops over
 397, 404. (AccountID 377 "Retail (Zimbabwe)" was removed 2026-10-02 — site
 discontinued. Don't add it back.)
 
-**RAM Couriers** — 2 accounts: 390, 391
+**RAM Couriers** — 3 accounts: 390, 391, 415 (Bloemfontein, added 2026-10-06; new site, so
+no-data / telemetry findings are expected until it is live, and it has no Notion
+site page yet: `publish_notion.py` skips it with a warning)
 
 **PMC Phalaborwa** — 1 account: 285
+
+**Android accounts** (`config.json → android_accounts`): all ShipTech except 365
+TWK Agri Underberg and 397 PMB Storage, plus all RAM Couriers. For these,
+`TempTableDataJson` is the main raw source behind `UsageDispensing` (C26).
+TWK, PMB Storage and PMC are IOT-only: no Android backup or raw payloads are
+expected there.
 
 Treat each client's accounts as one group in the report. An anomaly in one
 ShipTech depot does not need escalating the same way as one affecting all 17.
@@ -200,7 +209,7 @@ report covering that client's whole account portfolio, matching this
 structure (this is the finalised, already-proven format used elsewhere at
 Tecmo Automation for the same kind of daily check — follow it exactly rather
 than reverting to a flat per-account list). Use the same full structure for
-RAM Couriers (2 accounts) and PMC Phalaborwa (1 account) as for ShipTech — a
+RAM Couriers (3 accounts) and PMC Phalaborwa (1 account) as for ShipTech — a
 one- or two-row Portfolio Summary table is still a table; don't shrink the
 report's structure just because there's less to put in it.
 
@@ -510,7 +519,7 @@ agent went live) — the agent is now the only writer.
 | RAM Couriers, PMC Phalaborwa | FAMS Client Portal > FAMS Clients > Sites > *site page* > **Data Integrity Reports** |
 
 AccountID → site → database is fixed in the pack's `config/config.json`
-(`notion.sites`, 20 sites). `publish_notion.py` does all of it from
+(`notion.sites`, 20 sites; 415 RAM Bloemfontein not mapped yet). `publish_notion.py` does all of it from
 `findings.json`; don't hand-edit pages or use the Notion MCP tools to write
 these pages.
 

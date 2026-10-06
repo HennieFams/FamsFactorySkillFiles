@@ -20,7 +20,8 @@ SCRIPTS = os.path.join(os.path.dirname(HERE), "scripts")
 CONFIG = os.path.join(os.path.dirname(HERE), "config", "config.json")
 sys.path.insert(0, SCRIPTS)
 
-import run_checks  # noqa: E402
+import run_checks
+import integrity_checks as ic  # noqa: E402
 from fams_sources import DirSource  # noqa: E402
 
 ACC = 9001
@@ -274,7 +275,7 @@ def test_every_db_statement_passes_the_read_only_guard(tmp_path):
             if "INFORMATION_SCHEMA" in sql:
                 table = params[0]
                 cols = {"Store": ["ID", "AccountID", "Macaddress"], "Account": ["ID", "name"],
-                        "TempTableDataJson": ["Macaddress", "CreateDate", "errorid"],
+                        "TempTableDataJson": ["ID", "Macaddress", "CreateDate", "errorid", "Jsondata"],
                         "Allocation": ["ID", "Description"], "EquipmentCostCentre": ["ID"]}.get(
                     table, ["ID", "AccountID", "Createdate", "CreateDate", "Volume", "TransactionID"])
                 return pd.DataFrame({"COLUMN_NAME": cols})
@@ -286,9 +287,11 @@ def test_every_db_statement_passes_the_read_only_guard(tmp_path):
     src.db, src._cols = FakeDb, {}
     cfg = base_cfg()
     cfg["clients"][0]["accounts"]["9003"] = None
+    cfg["android_accounts"] = [ACC]
     doc = run_checks.run_client(src, cfg["clients"][0], cfg, RUN, str(tmp_path))
     assert len(seen) > 15
     assert any("TempTableDataJson" in s for s in seen) and any("LEFT JOIN Allocation" in s for s in seen)
+    assert any("JSON_VALUE" in s and "ISJSON" in s for s in seen)   # C26 payload query passed the guard
     assert not [g for g in doc["data_gaps"] if "FAILED" in g["gap"]], doc["data_gaps"]
 
 
@@ -322,4 +325,27 @@ def test_source_hierarchy_in_findings(result):
     doc, _ = result
     h = doc["source_hierarchy"]
     assert h[0]["layer"] == "Source of truth" and h[0]["table"] == "UsageDispensing"
-    assert [x["table"] for x in h[1:3]] == ["UsageDispensingIOT", "UsageDispensingAndroid"]
+    truth = [x["table"] for x in h if x["layer"] == "Source of truth"]
+    assert truth == ["UsageDispensing", "UsageTransfer", "UsageReceiving", "Stock"]
+    assert {x["table"] for x in h if x["layer"] == "Backup"} == {"UsageDispensingIOT", "UsageDispensingAndroid"}
+    assert "TempTableDataJson" in {x["table"] for x in h if x["layer"] == "Raw"}
+
+
+def test_c26_android_raw_payload_missing():
+    import types
+    W1 = W0 + pd.Timedelta(hours=48)
+    stores = pd.DataFrame({"AccountID": [ACC, 9002], "Macaddress": ["AND1", "IOTONLY"]})
+    disp = pd.DataFrame({"AccountID": [ACC], "TransactionID": ["OK1"], "Volume": [10.0], "CreateDate": [T(1)]})
+    rec = pd.DataFrame({"AccountID": [ACC], "TransactionID": ["RCV1"], "Volume": [5000.0], "CreateDate": [T(2)]})
+    pay = pd.DataFrame({
+        "ID": [1, 2, 3, 4, 5, 6, 7],
+        "Macaddress": ["AND1", "AND1", "AND1", "AND1", "AND1", "IOTONLY", "AND1"],
+        "TransactionID": ["OK1", "RCV1", "LOSTA", "LOSTA", None, "X9", "LATE1"],
+        "Volume": ["10", "5000", "88.5", "88.5", "3", "7", "4"],
+        "CreateDate": [T(1), T(2), T(3), T(3, 0, 5), T(4), T(5), W1 - pd.Timedelta(minutes=10)]})
+    d = types.SimpleNamespace(tempjson_payloads=pay, stores=stores, android_accounts={ACC}, disp=disp,
+                              transfer=None, receiving=rec, window_start=W0, window_end=W1)
+    cfg = base_cfg()
+    out = ic.check_android_raw(d, cfg)
+    assert len(out) == 1 and out[0]["check"] == "C26" and out[0]["status"] == "Investigate"
+    assert out[0]["account_id"] == ACC and out[0]["count"] == 1 and out[0]["litres"] == 88.5

@@ -1273,21 +1273,69 @@ def check_fms_decode(d, cfg):
     return out
 
 
+# ----------------------------------------------------------------------------
+# C26 Android raw-to-truth gap: TempTableDataJson payload never reached UsageDispensing
+# For accounts with Android devices (config android_accounts) TempTableDataJson holds
+# the raw payloads behind UsageDispensing. A payload with a TransactionID that is in
+# none of UsageDispensing / UsageTransfer / UsageReceiving (whole fetched range) is
+# dispensing missing from client reporting.
+# ----------------------------------------------------------------------------
+def check_android_raw(d, cfg):
+    out = []
+    t = getattr(d, "tempjson_payloads", None)
+    if empty(t) or empty(d.stores) or not has(d.stores, "Macaddress", "AccountID") or "TransactionID" not in t.columns:
+        return out
+    grace = pd.Timedelta(minutes=cfg["tolerances"].get("decode_grace_minutes", 30))
+    mac_acc = dict(zip(d.stores["Macaddress"].astype(str), d.stores["AccountID"]))
+    t = t.assign(AccountID=t["Macaddress"].astype(str).map(mac_acc))
+    t = t[t["AccountID"].isin(getattr(d, "android_accounts", set())) & valid_id(t["TransactionID"])
+          & (t["CreateDate"] < d.window_end - grace)]
+    if "Volume" in t.columns:
+        t = t.assign(Volume=num(t["Volume"]))
+        t = t[~(t["Volume"] <= 0)]          # keep positive or unknown volume
+    if empty(t):
+        return out
+    canon = set()
+    for tbl in (d.disp, d.transfer, d.receiving):
+        if not empty(tbl) and has(tbl, "AccountID", "TransactionID"):
+            canon |= set(zip(tbl["AccountID"].astype("Int64"), tbl["TransactionID"].astype(str)))
+    keys = list(zip(t["AccountID"].astype("Int64"), t["TransactionID"].astype(str)))
+    miss = t[[k not in canon for k in keys]].drop_duplicates(["AccountID", "TransactionID"])
+    cols = [c for c in ["ID", "AccountID", "Macaddress", "TransactionID", "Volume", "CreateDate"] if c in miss.columns]
+    for acc, g in miss.groupby("AccountID"):
+        lit = num(g["Volume"]).sum() if "Volume" in g.columns else 0.0
+        out.append(F("C26", "Investigate", acc, "Android raw payload missing from UsageDispensing",
+                     f"{len(g)} TempTableDataJson payload(s) (errorid 0) carry a TransactionID that is in none of "
+                     "UsageDispensing / UsageTransfer / UsageReceiving (searched across the whole fetched range). "
+                     "TempTableDataJson is the raw source behind UsageDispensing for this Android account, so this "
+                     f"dispensing ({lit:.2f} L where the payload states a volume) is missing from client reporting. "
+                     "Possible cause: processing failure after upload.",
+                     affected=f"{lit:.2f} L / {len(g)} payloads", litres=lit, count=len(g), evidence=g[cols]))
+    return out
+
+
 # Fixed statement of the dispensing data lineage (Hennie, 2026-10-06). Written
 # into findings.json; reports must print it as-is and never describe any other
 # table as the source of truth.
 SOURCE_HIERARCHY = [
-    {"layer": "Source of truth", "table": "UsageDispensing",
+    {"layer": "Source of truth", "table": "UsageDispensing", "covers": "Dispensing transactions",
      "note": "All dispensing figures in this report come from UsageDispensing."},
-    {"layer": "Backup 1", "table": "UsageDispensingIOT",
-     "note": "IOT data, decoded from IOTData_FMS. Used to verify UsageDispensing."},
-    {"layer": "Backup 2", "table": "UsageDispensingAndroid",
-     "note": "Android handheld log. Second verification layer."},
-    {"layer": "Raw", "table": "TempTableDataJson",
-     "note": "Raw payloads behind UsageDispensing (only accounts with Android devices)."},
-    {"layer": "Raw", "table": "IOTData_FMS",
-     "note": "Raw IOT stream. Decoded into UsageDispensingIOT, and into UsageDispensing when the "
+    {"layer": "Source of truth", "table": "UsageTransfer", "covers": "Transfers",
+     "note": "Dispensing into a bowser or another tank."},
+    {"layer": "Source of truth", "table": "UsageReceiving", "covers": "Receiving / offloading",
+     "note": "All receiving and offloading transactions."},
+    {"layer": "Source of truth", "table": "Stock", "covers": "Tank levels", "note": "All tank-level figures."},
+    {"layer": "Backup", "table": "UsageDispensingAndroid", "covers": "Dispensing",
+     "note": "From the Android control unit that links the Android device to the fuel pump."},
+    {"layer": "Backup", "table": "UsageDispensingIOT", "covers": "Dispensing", "note": "From the IOT device."},
+    {"layer": "Raw", "table": "TempTableDataJson", "covers": "Android dispensing",
+     "note": "Raw Android payloads behind UsageDispensing; the main raw source for Android accounts."},
+    {"layer": "Raw", "table": "IOTData_FMS", "covers": "IOT dispensing",
+     "note": "Raw IOT dispensing records, decoded into UsageDispensingIOT and into UsageDispensing when the "
              "transaction is not already there."},
+    {"layer": "Raw", "table": "IOTData_ATG", "covers": "Tank levels (IOT)", "note": "Raw IOT tank-level data."},
+    {"layer": "Raw", "table": "IOTData_Notification", "covers": "Alerts", "note": "Raw IOT device alerts."},
+    {"layer": "Raw", "table": "IOTData_Error", "covers": "Tank errors", "note": "Raw IOT tank errors."},
 ]
 
 CHECK_REGISTRY = [
@@ -1316,4 +1364,5 @@ CHECK_REGISTRY = [
     ("C23", "Volume outliers per equipment (IQR)", "fams-integrity algorithms/outlier-detection.md"),
     ("C24", "Allocation / cost-centre referential integrity", "fams-integrity business-rules/allocation-, cost-centre-validation.md"),
     ("C25", "Raw IOT dispensing (IOTData_FMS) not decoded into UsageDispensingIOT / UsageDispensing", "fams-database-core data lineage (2026-10)"),
+    ("C26", "Android raw payload (TempTableDataJson) missing from UsageDispensing (Android accounts)", "fams-database-core data lineage (2026-10)"),
 ]
