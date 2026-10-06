@@ -1,6 +1,7 @@
 {
   "env": {
-    "FAMS_VUE_HOME": "/paperclip/fams-vue-agents"
+    "FAMS_VUE_HOME": "/paperclip/fams-vue-agents",
+    "npm_config_include": "dev"
   },
   "permissions": {
     "deny": [

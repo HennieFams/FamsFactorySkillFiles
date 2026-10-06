@@ -110,7 +110,7 @@ if [ "$VERIFY_TEMPLATE" = 1 ]; then
   echo "Checking the Vue starter (npm install + lint + tests + build + budget) ..."
   docker exec -u "$AGENT_USER" "$C" sh -euc "
     rm -rf /tmp/fva-tpl && cp -r '$H/templates/vue3-starter' /tmp/fva-tpl && cd /tmp/fva-tpl
-    npm ci --no-audit --no-fund --loglevel=error
+    npm ci --include=dev --no-audit --no-fund --loglevel=error
     if npm run check > /tmp/fva-check.log 2>&1; then tail -3 /tmp/fva-check.log; else tail -40 /tmp/fva-check.log; echo TEMPLATE CHECK FAILED; fi
     rm -rf /tmp/fva-tpl /tmp/fva-check.log"
 fi

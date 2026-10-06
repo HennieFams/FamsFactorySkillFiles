@@ -12,7 +12,7 @@ it names.
 
 In the project folder of the clone:
 
-1. `npm ci` (clean install from the lock file).
+1. `npm ci --include=dev` (clean install from the lock file, incl. lint/test/build tools).
 2. `npm run lint` — includes the API rule, palette rule and hex rule. Any error = fail.
 3. `npm run test` — Vitest.
 4. `npm run build` then `npm run budget` — initial JS ≤ 250 KB gzip, lazy chunks ≤ 150 KB

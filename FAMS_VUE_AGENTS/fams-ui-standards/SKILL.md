@@ -211,7 +211,11 @@ Rules:
 ## 5. Legacy FAMS-UI (Vue 2) — study it, don't copy it
 
 Legacy repo: Azure DevOps `TecmoFams / Fams24 / Fams24`, folder `FAMS-UI/` (Vue 2,
-Vuexy template, Vuesax + BootstrapVue + Element UI, Vuex, vue-cli). Use it to learn
+Vuexy template, Vuesax + BootstrapVue + Element UI, Vuex, vue-cli 3, **Node 14.21.3**).
+It only builds on Node 14 (node-sass 4, vue-cli 3); the agents' container runs Node 24.
+**Read its source; never `npm install`, build or run it**, and never copy its
+`package.json` versions into new projects. New projects use the starter's toolchain
+(Node ≥ 20.19). Use it to learn
 **what screens exist, which endpoints they call and with what parameters** — not how
 to build them.
 

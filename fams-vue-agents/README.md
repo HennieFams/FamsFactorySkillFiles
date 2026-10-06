@@ -157,7 +157,7 @@ back with questions before writing code — that's expected.
   `/data/docker/volumes/docker_paperclip-data/_data/fams-vue-agents/workspace/repos`).
   Safe to delete a clone; the next task re-clones it.
 - Run the guard-rail tests locally: `node --test fams-vue-agents/tests/*.test.mjs`.
-- Run the starter's checks locally: `cd fams-vue-agents/templates/vue3-starter && npm ci && npm run check`.
+- Run the starter's checks locally: `cd fams-vue-agents/templates/vue3-starter && npm ci --include=dev && npm run check`.
 
 ## Known limits
 

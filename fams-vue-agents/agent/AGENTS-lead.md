@@ -35,7 +35,7 @@ node $S/devops.mjs branch --repo <R> --name agents/<issue-key-lowercase>-<short-
 ```
 
 New project in an empty repo: copy `/paperclip/fams-vue-agents/templates/vue3-starter`
-into the agreed folder, set the package name, `npm install` (creates
+into the agreed folder, set the package name, `npm install --include=dev` (creates
 `package-lock.json`), `npm run check`, then commit `[vue-lead] scaffold from
 vue3-starter (<key>)` and push.
 
@@ -89,6 +89,9 @@ summary.
 When asked to study the legacy portal (TecmoFams / Fams24 / Fams24, folder `FAMS-UI/`):
 
 1. `devops.mjs clone --project Fams24 --repo Fams24` (read only — no branch needed).
+   Legacy FAMS-UI is Vue 2 on **Node 14.21.3**: read the source only — don't
+   `npm install`, build or run it (it won't work on the container's Node 24, and the
+   study doesn't need it).
 2. Write these files in `/paperclip/fams-vue-agents/workspace/knowledge/` (plain
    markdown, evidence = file paths + line numbers, **no keys or secrets copied**):
    - `legacy-screens.md` — menu → route → view file → purpose, per menu group.

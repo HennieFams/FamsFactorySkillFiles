@@ -49,7 +49,8 @@ vitejs.dev, pinia.vuejs.org) with WebFetch when you need API details.
   `diff`, `log`, `show`) are fine. Switch branches only with `devops.mjs branch`.
   The pull-request commands (`pr-create`, `pr-status`, `pr-comments`, `pr-comment`)
   need a clone of that repo; `--body-file` must be a file inside your working folder.
-- Node/npm run inside each project folder: `npm ci`, `npm run dev`, `npm run lint`,
+- Node/npm run inside each project folder: `npm ci --include=dev` (the container has
+  `NODE_ENV=production`, so plain `npm ci` skips lint/test/build tools), `npm run dev`, `npm run lint`,
   `npm run test`, `npm run build`, `npm run budget`, `npm run check`.
 - New projects start from `/paperclip/fams-vue-agents/templates/vue3-starter`.
 
