@@ -3,6 +3,7 @@
 // Run INSIDE the Paperclip container with the board token (never printed):
 //   node create-agents.mjs --dry-run     # show what would be created
 //   node create-agents.mjs               # create (skips agents that already exist by name)
+//   node create-agents.mjs --update-instructions   # rewrite the managed instructions of the existing agents
 // Env: PAPERCLIP_BOARD_TOKEN (required), FAMS_COMPANY_ID, FAMS_CEO_AGENT_ID,
 //      PAPERCLIP_API (default http://localhost:3100/api)
 // Template = the working Database Integrity Agent: claude_local, claude-sonnet-5,
@@ -15,6 +16,7 @@ const TOKEN = process.env.PAPERCLIP_BOARD_TOKEN;
 const COMPANY = process.env.FAMS_COMPANY_ID || '174397dc-6b10-4a13-a753-884987e288e9';
 const CEO = process.env.FAMS_CEO_AGENT_ID || '99bf123e-fb72-482f-b627-263b33c24ae7';
 const DRY = process.argv.includes('--dry-run');
+const UPDATE = process.argv.includes('--update-instructions');
 const HOME = '/paperclip/fams-vue-agents';
 const WORKSPACE = `${HOME}/workspace`;
 const MODEL = process.env.FAMS_VUE_MODEL || 'claude-sonnet-5';
@@ -78,7 +80,16 @@ if (known) {
 
 let leadId = existing.get('FAMS Vue Lead')?.id || null;
 for (const a of AGENTS) {
-  if (existing.has(a.name)) { console.log(`= ${a.name} already exists (${existing.get(a.name).id}) - skipped`); continue; }
+  if (existing.has(a.name)) {
+    const ex = existing.get(a.name);
+    if (!UPDATE) { console.log(`= ${a.name} already exists (${ex.id}) - skipped`); continue; }
+    let f = ex.adapterConfig?.instructionsFilePath;
+    if (!f) { try { f = (await api('GET', `/agents/${ex.id}`)).adapterConfig?.instructionsFilePath; } catch {} }
+    if (f && existsSync(f)) { if (!DRY) writeFileSync(f, instructionsFor(a.name)); console.log(`~ ${a.name}: instructions ${DRY ? 'would be ' : ''}rewritten (${f})`); }
+    else console.log(`!! ${a.name}: no instructions file found (${f}) - paste its block from PAPERCLIP_INSTRUCTIONS.md in the UI`);
+    continue;
+  }
+  if (UPDATE) { console.log(`- ${a.name} does not exist - not created (--update-instructions)`); continue; }
   const reportsTo = a.reportsTo === 'CEO' ? CEO : leadId;
   const body = {
     name: a.name,

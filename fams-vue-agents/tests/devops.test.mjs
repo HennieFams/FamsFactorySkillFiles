@@ -10,7 +10,7 @@ import { fileURLToPath } from 'node:url';
 const HERE = dirname(fileURLToPath(import.meta.url));
 const SCRIPT = join(HERE, '..', 'scripts', 'devops.mjs');
 process.env.FAMS_VUE_TEST = '1';
-const { branchProblem, prePushProblems, repoUrl, isProtected, parseArgs, bodyPathProblem, parseOrigin, monthFolder, repoAllowed, pathProblems, writeTarget } = await import(SCRIPT);
+const { branchProblem, prePushProblems, repoUrl, isProtected, parseArgs, bodyPathProblem, parseOrigin, monthFolder, repoAllowed, pathProblems, writeTarget, baseBranchOf, prTargetsOf, prCompleteProblem } = await import(SCRIPT);
 
 test('branch names: only the agents\' own feature/bugfix branches', () => {
   assert.equal(branchProblem('agents_features/tec-12-tank-card'), null);
@@ -76,6 +76,52 @@ test('only files under the write target folder may change', () => {
   assert.deepEqual(pathProblems(['FAMS-UI/src/main.js', 'FAMS-UI/package.json'], W), []);
   assert.deepEqual(pathProblems(['FAMS-API/Controllers/X.cs', 'azure-pipelines.yml', 'FAMS-UIx/a', 'docs/a.md'], W),
     ['FAMS-API/Controllers/X.cs', 'azure-pipelines.yml', 'FAMS-UIx/a', 'docs/a.md']);
+});
+
+test('"./" makes the whole repo writable; other dot paths are refused', () => {
+  const cfg = { write_targets: { list: [
+    { project: 'P', repo: 'Whole', paths: ['./'] },
+    { project: 'P', repo: 'Dot', paths: ['../x/'] },
+    { project: 'P', repo: 'Dot2', paths: ['.git/'] },
+    { project: 'P', repo: 'Slash', paths: ['/'] }
+  ] } };
+  assert.deepEqual(writeTarget('P', 'Whole', cfg).paths, ['./']);
+  for (const r of ['Dot', 'Dot2', 'Slash']) assert.equal(writeTarget('P', r, cfg), null);
+  assert.deepEqual(pathProblems(['package.json', 'src/App.vue', 'docs/a.md'], ['./']), []);
+});
+
+test('per-repo base branch: branch from it and PR only into it', () => {
+  const cfg = { git: { base_branch: 'development', allowed_pr_targets: ['development'], protected_branches: [] } };
+  const own = { project: 'P', repo: 'R', paths: ['FAMS-UI/'], base_branch: 'development-agent' };
+  assert.equal(baseBranchOf(own, cfg), 'development-agent');
+  assert.deepEqual(prTargetsOf(own, cfg), ['development-agent']);
+  assert.equal(baseBranchOf({ paths: ['x/'] }, cfg), 'development');
+  assert.deepEqual(prTargetsOf({ paths: ['x/'] }, cfg), ['development']);
+});
+
+test('the real config: FamsVue3_2027 is writable only in FAMS-UI/, from development-agent; Fams24 stays read-only', () => {
+  const t = writeTarget('FamsVue3_2027', 'FamsVue3_2027');
+  assert.deepEqual(t.paths, ['FAMS-UI/']);
+  assert.equal(baseBranchOf(t), 'development-agent');
+  assert.deepEqual(prTargetsOf(t), ['development-agent']);
+  assert.equal(writeTarget('Fams24', 'Fams24'), null);
+  for (const b of ['development-agent', 'development', 'master']) assert.ok(isProtected(b), b);
+  assert.deepEqual(pathProblems(['FAMS-UI/src/App.vue', 'README.md', 'azure-pipelines.yml'], t.paths), ['README.md', 'azure-pipelines.yml']);
+});
+
+test('pr-complete: only active, non-draft PRs from agent branches into a base branch with agents_merge', () => {
+  const t = writeTarget('FamsVue3_2027', 'FamsVue3_2027');
+  const ok = { status: 'active', isDraft: false, mergeStatus: 'succeeded', sourceRefName: 'refs/heads/agents_features/tec-1-x', targetRefName: 'refs/heads/development-agent', reviewers: [{ displayName: 'Hennie', vote: 10 }] };
+  assert.equal(prCompleteProblem(ok, t), null);
+  assert.match(prCompleteProblem({ ...ok, targetRefName: 'refs/heads/master' }, t), /only complete PRs into development-agent/);
+  assert.match(prCompleteProblem({ ...ok, targetRefName: 'refs/heads/development' }, t), /only complete PRs into development-agent/);
+  assert.match(prCompleteProblem({ ...ok, sourceRefName: 'refs/heads/hennie_features/x' }, t), /source branch/);
+  assert.match(prCompleteProblem({ ...ok, isDraft: true }, t), /draft/);
+  assert.match(prCompleteProblem({ ...ok, status: 'completed' }, t), /not active/);
+  assert.match(prCompleteProblem({ ...ok, mergeStatus: 'conflicts' }, t), /conflicts/);
+  assert.match(prCompleteProblem({ ...ok, reviewers: [{ displayName: 'Hennie', vote: -10 }] }, t), /rejected/);
+  assert.match(prCompleteProblem(ok, { ...t, agents_merge: false }), /a human merges/);
+  assert.match(prCompleteProblem(ok, null), /a human merges/);
 });
 
 test('repo URL is built without credentials', () => {

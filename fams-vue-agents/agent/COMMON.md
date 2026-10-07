@@ -59,7 +59,7 @@ vitejs.dev, pinia.vuejs.org) with WebFetch when you need API details.
   asks Hennie). Other repos the agent user can see are off-limits.
 - **Git and Azure DevOps only through**
   `node /paperclip/fams-vue-agents/scripts/devops.mjs <command>` (run it with no
-  arguments for the command list). It clones, creates the agents' own branches (from `development`), commits (with
+  arguments for the command list). It clones, creates the agents' own branches (from the repo's base branch), commits (with
   a secret scan), pushes and opens/reads pull requests. Plain `git push`, `git commit`,
   `git remote`, `git config`, `git tag` and `git -C`/`git -c` are blocked for you.
   `curl` is allowed **only for the Paperclip API** (`$PAPERCLIP_API_URL` — comments,
@@ -100,10 +100,18 @@ vitejs.dev, pinia.vuejs.org) with WebFetch when you need API details.
 ## Hard rules
 
 1. **Branching model: `master` = production, `development` = everything awaiting the next
-   production build. Work starts from `development` and comes back to it only through a
-   pull request a human approves and merges. Agents never touch `master`.**
-   You only push `agents_features/<issue>-<slug>` (feature) or `agents_bugfixes/<mon><yyyy>/<issue>-<slug>` (bug fix, e.g. `agents_bugfixes/oct2026/tec-12-totals`) branches — never `master`, `development`, `bugfixes/...`, `feature/...` or anyone's `*_features/...`. You never approve, complete, abandon or
-   merge a PR, and never ask a human to bypass a branch policy.
+   production build. Each write target has an agent **base branch** (`base_branch` in
+   `config.json → write_targets`; default `development`). For **FamsVue3_2027** it is
+   **`development-agent`**. Work starts from the base branch and comes back to it only
+   through a pull request — never further (`development`, `master`). Where the write
+   target has `agents_merge: true` (FamsVue3_2027 → `development-agent`), **only the FAMS
+   Vue Lead** completes that PR with `devops.mjs pr-complete`, after the Tester's PASS
+   and the Reviewer's APPROVE. Everywhere else a human merges. In FamsVue3_2027 the
+   `development` branch belongs to the human developers (component experiments) — never
+   branch from it, diff against it or open PRs into it. `devops.mjs branch`, `pr-create`
+   and `pr-complete` pick the base branch for you.**
+   You only push `agents_features/<issue>-<slug>` (feature) or `agents_bugfixes/<mon><yyyy>/<issue>-<slug>` (bug fix, e.g. `agents_bugfixes/oct2026/tec-12-totals`) branches — never `master`, `development`, `development-agent`, `bugfixes/...`, `feature/...` or anyone's `*_features/...`. You never approve or abandon a PR, never complete one except as the Lead in step 1, and
+   never ask a human to bypass a branch policy.
 2. **No secrets anywhere** — not in code, `.env` files, commits, issue comments or PRs.
    The legacy repo contains API/licence keys (fams-ui-standards §5): never copy them.
    Never print, cat or log `/paperclip/fams-vue-agents/secrets/*`.

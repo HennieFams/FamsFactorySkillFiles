@@ -9,7 +9,8 @@
 //   node devops.mjs branch --repo R --name agents_bugfixes/<mon><yyyy>/<issue>-<slug> (bug fix, from development)
 //   node devops.mjs commit --repo R --message "..." [--all]  commit staged (or all) changes on an agent branch
 //   node devops.mjs push --repo R                            push the current agent branch (never forced)
-//   node devops.mjs pr-create --repo R --title "..." --body-file F [--draft]   (always into development)
+//   node devops.mjs pr-create --repo R --title "..." --body-file F [--draft]   (always into the repo's base branch)
+//   node devops.mjs pr-complete --repo R --id N              merge a PR into the base branch (only where write target has agents_merge)
 //   node devops.mjs pr-status --repo R --id N                status, reviewer votes, policy results
 //   node devops.mjs pr-comments --repo R --id N              read review threads
 //   node devops.mjs pr-comment --repo R --id N --body-file F post a comment thread (reviewer findings)
@@ -19,7 +20,8 @@
 //     can be created, committed on or pushed; they always start from development;
 //   - protected branches (config git.protected_branches) are never pushed; no force
 //     (non-fast-forward) pushes, no deletes, no tags;
-//   - no command approves, completes, abandons or merges a pull request;
+//   - no command approves or abandons a pull request; pr-complete merges ONLY into a write target's
+//     base branch when that target sets agents_merge: true (never master/development);
 //   - the token is read from a file by a root-owned askpass script, never printed, never
 //     written into .git/config, a remote URL, a commit, a PR or a comment.
 // These are seat belts. The real wall is the Azure DevOps permissions + branch policies
@@ -90,8 +92,35 @@ export function prePushProblems(stdinText, cfg = CONFIG, isAncestor = () => true
 }
 
 /** Files not under any of the allowed folder prefixes. Returns the offending paths. */
+const WHOLE_REPO = './';
 export function pathProblems(files, paths) {
+  if (paths.includes(WHOLE_REPO)) return [];           // "./" = the whole repo is writable
   return files.filter((f) => f && !paths.some((p) => p && f.startsWith(p)));
+}
+
+/** The branch agents start from and open PRs into for this write target (default: git.base_branch). */
+export function baseBranchOf(t, cfg = CONFIG) {
+  return (t && typeof t.base_branch === 'string' && t.base_branch) || cfg.git.base_branch;
+}
+/** PR targets for this write target: only its own base branch when it has one, else git.allowed_pr_targets. */
+export function prTargetsOf(t, cfg = CONFIG) {
+  return t && t.base_branch ? [t.base_branch] : cfg.git.allowed_pr_targets;
+}
+
+/** Why the agents may NOT complete this PR (null = OK). pr = Azure DevOps PR JSON, t = write target. */
+export function prCompleteProblem(pr, t, cfg = CONFIG) {
+  if (!t || t.agents_merge !== true) return 'agents may not complete pull requests in this repo (write target has no agents_merge) - a human merges';
+  const base = baseBranchOf(t, cfg);
+  if (pr.status !== 'active') return `pull request is ${pr.status}, not active`;
+  if (pr.isDraft) return 'pull request is a draft';
+  if (pr.targetRefName !== `refs/heads/${base}`) return `pull request targets ${String(pr.targetRefName).replace('refs/heads/', '')} - agents may only complete PRs into ${base}`;
+  const source = String(pr.sourceRefName || '').replace('refs/heads/', '');
+  const bp = branchProblem(source, cfg);
+  if (bp) return `source branch ${source}: ${bp}`;
+  if (pr.mergeStatus === 'conflicts') return 'pull request has merge conflicts - fix them on the source branch first';
+  const blocked = (pr.reviewers || []).filter((r) => r.vote === -10 || r.vote === -5);
+  if (blocked.length) return `a reviewer rejected or is waiting for changes: ${blocked.map((r) => r.displayName).join(', ')}`;
+  return null;
 }
 
 const same = (r, project, repo) => r.project === project && r.repo === repo;
@@ -104,7 +133,7 @@ export function repoAllowed(project, repo, cfg = CONFIG) {
 /** The write target for this repo (agents may only change its listed folders), or null = read-only. */
 export function writeTarget(project, repo, cfg = CONFIG) {
   const t = (cfg.write_targets?.list || []).find((r) => same(r, project, repo));
-  return t && Array.isArray(t.paths) && t.paths.length && t.paths.every((p) => typeof p === 'string' && p.endsWith('/') && !p.startsWith('/') && !p.includes('..')) ? t : null;
+  return t && Array.isArray(t.paths) && t.paths.length && t.paths.every((p) => p === WHOLE_REPO || (typeof p === 'string' && p.endsWith('/') && !p.startsWith('/') && !p.startsWith('.') && !p.includes('..'))) ? t : null;
 }
 
 export function repoUrl(project, repo, cfg = CONFIG) {
@@ -242,13 +271,14 @@ function originOf(cwd) {
 }
 
 /** Folders the agents may change in this clone; fails for read-only repos (e.g. Fams24). */
-function writePathsFor(cwd) {
-  if (TEST) return (process.env.FAMS_VUE_TEST_WRITE_PATHS || 'FAMS-UI/').split(',');
+function targetFor(cwd) {
+  if (TEST) return { paths: (process.env.FAMS_VUE_TEST_WRITE_PATHS || 'FAMS-UI/').split(','), base_branch: process.env.FAMS_VUE_TEST_BASE || undefined };
   const o = originOf(cwd);
   const t = writeTarget(o.project, o.repo);
   if (!t) fail(`${o.project}/${o.repo} is READ-ONLY for the agents. Changes are only allowed in a repo + folder Hennie has added to config.json write_targets - ask the Lead`);
-  return t.paths;
+  return t;
 }
+function writePathsFor(cwd) { return targetFor(cwd).paths; }
 
 function readBody(args) {
   const p = str(args, 'body-file');
@@ -296,11 +326,11 @@ const commands = {
 
   async branch(args) {
     const dir = repoDir(str(args, 'repo'));
-    const writePaths = writePathsFor(dir);  // read-only repos stop here
+    const target = targetFor(dir);  // read-only repos stop here
     const name = str(args, 'name');
     const p = branchProblem(name);
     if (p) fail(p);
-    const from = CONFIG.git.base_branch;  // always development (Tecmo branching model)
+    const from = baseBranchOf(target);  // the repo's agent base branch (development, or e.g. development-agent)
     if (args.from && args.from !== from) fail(`agent branches always start from ${from}`);
     const dirty = git(['status', '--porcelain'], { cwd: dir, quiet: true }).stdout.trim();
     if (dirty) fail('working tree has uncommitted changes - commit them or ask the Lead before switching branches');
@@ -350,14 +380,15 @@ const commands = {
 
   async 'pr-create'(args) {
     const dir = repoDir(str(args, 'repo'));
-    writePathsFor(dir);  // no PRs on read-only repos
+    const wt = targetFor(dir);  // no PRs on read-only repos
     const { project, repo } = originOf(dir);
     const title = str(args, 'title');
     const source = currentBranch(dir);
     const p = branchProblem(source);
     if (p) fail(`source branch ${source}: ${p}`);
-    const target = str(args, 'target', false) || CONFIG.git.base_branch;
-    if (!CONFIG.git.allowed_pr_targets.includes(target)) fail(`pull requests may only target: ${CONFIG.git.allowed_pr_targets.join(', ')}`);
+    const target = str(args, 'target', false) || baseBranchOf(wt);
+    const allowed = prTargetsOf(wt);
+    if (!allowed.includes(target)) fail(`pull requests in this repo may only target: ${allowed.join(', ')}`);
     git(['fetch', 'origin'], { cwd: dir, quiet: true });
     const local = git(['rev-parse', 'HEAD'], { cwd: dir, quiet: true }).stdout.trim();
     const remote = git(['rev-parse', '--verify', '--quiet', `refs/remotes/origin/${source}`], { cwd: dir, quiet: true, allowFail: true }).stdout.trim();
@@ -371,6 +402,31 @@ const commands = {
     };
     const pr = await api(`git/repositories/${encodeURIComponent(repo)}/pullrequests`, { method: 'POST', body, project });
     console.log(JSON.stringify({ id: pr.pullRequestId, url: prWebUrl(project, repo, pr.pullRequestId), source, target, draft: body.isDraft }, null, 2));
+  },
+
+  async 'pr-complete'(args) {
+    const dir = repoDir(str(args, 'repo'));
+    const wt = targetFor(dir);  // read-only repos stop here
+    const { project, repo } = originOf(dir);
+    const id = str(args, 'id');
+    const path = `git/repositories/${encodeURIComponent(repo)}/pullrequests/${encodeURIComponent(id)}`;
+    const pr = await api(path, { project });
+    const problem = prCompleteProblem(pr, wt);
+    if (problem) fail(`refusing to complete PR ${id}: ${problem}`);
+    const body = {
+      status: 'completed',
+      lastMergeSourceCommit: { commitId: pr.lastMergeSourceCommit?.commitId },
+      completionOptions: {
+        mergeStrategy: 'noFastForward',
+        deleteSourceBranch: false,
+        bypassPolicy: false,
+        transitionWorkItems: false,
+        mergeCommitMessage: `Merged PR ${pr.pullRequestId}: ${pr.title}`
+      }
+    };
+    const done = await api(path, { method: 'PATCH', body, project });
+    console.log(JSON.stringify({ id: done.pullRequestId, status: done.status, mergeStatus: done.mergeStatus, target: done.targetRefName, url: prWebUrl(project, repo, done.pullRequestId) }, null, 2));
+    if (done.status !== 'completed') console.log('Not completed yet - a branch policy may still be pending. Check again with pr-status; never ask for a policy bypass.');
   },
 
   async 'pr-status'(args) {
@@ -422,15 +478,15 @@ const commands = {
     const isAncestor = (a, b) => spawnSync('git', ['merge-base', '--is-ancestor', a, b], { encoding: 'utf8' }).status === 0;
     const problems = prePushProblems(input, CONFIG, isAncestor);
     // every file changed by the pushed commits must be under the write target's folders
-    let writePaths;
-    try { writePaths = writePathsFor(process.cwd()); } catch (e) { problems.push(e.message); writePaths = []; }
+    let writePaths, baseBranch = CONFIG.git.base_branch;
+    try { const t = targetFor(process.cwd()); writePaths = t.paths; baseBranch = baseBranchOf(t); } catch (e) { problems.push(e.message); writePaths = []; }
     for (const line of input.split('\n').map((l) => l.trim()).filter(Boolean)) {
       const [, localSha, , remoteSha] = line.split(/\s+/);
       if (!localSha || ZERO.test(localSha)) continue;
       const base = remoteSha && !ZERO.test(remoteSha)
         ? remoteSha
-        : spawnSync('git', ['merge-base', localSha, `origin/${CONFIG.git.base_branch}`], { encoding: 'utf8' }).stdout.trim();
-      if (!base) { problems.push(`cannot find origin/${CONFIG.git.base_branch} to check changed paths`); continue; }
+        : spawnSync('git', ['merge-base', localSha, `origin/${baseBranch}`], { encoding: 'utf8' }).stdout.trim();
+      if (!base) { problems.push(`cannot find origin/${baseBranch} to check changed paths`); continue; }
       const files = spawnSync('git', ['diff', '--name-only', '--no-renames', base, localSha], { encoding: 'utf8' }).stdout.split('\n');
       const outside = pathProblems(files, writePaths);
       if (outside.length && writePaths.length) problems.push(`changes outside ${writePaths.join(', ')}: ${outside.slice(0, 5).join(', ')}`);

@@ -10,8 +10,10 @@ sub-issue the FAMS Vue Lead assigned to you.
 
 ## Review
 
+`<base>` is the repo's agent base branch named in your sub-issue (e.g. `development-agent`).
+
 Read the plan and acceptance criteria on the parent issue, the Tester's last report, then
-the full diff: `cd repos/<R> && git diff origin/development...HEAD` (and the files around it).
+the full diff: `cd repos/<R> && git diff origin/<base>...HEAD` (and the files around it).
 If you don't have the clone yet: `devops.mjs clone --project <P> --repo <R>` then
 `devops.mjs branch --repo <R> --name <the branch named in your sub-issue>`.
 

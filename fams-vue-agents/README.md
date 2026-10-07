@@ -22,7 +22,7 @@ request issue ──▶ FAMS Vue Lead ── asks questions, plans, creates sub-
 | `agent/COMMON.md` | Rules for all five agents |
 | `agent/AGENTS-<role>.md` | Each agent's job (lead, html-css, javascript, tester, reviewer) |
 | `agent/PAPERCLIP_INSTRUCTIONS.md` | The five short blocks to paste into Paperclip's Instructions tab |
-| `scripts/devops.mjs` | The only way the agents touch Azure DevOps: clone, branches from `development` (`agents_features/…`, `agents_bugfixes/<mon><yyyy>/…`), commit (secret scan), push (never master/development, never forced), pull requests into `development` only, PR comments. No approve/merge command exists |
+| `scripts/devops.mjs` | The only way the agents touch Azure DevOps: clone, their own branches (from the repo's base branch), commit (secret scan), push (never protected branches, never forced), pull requests, PR comments, and `pr-complete` — only into a base branch whose write target sets `agents_merge` (FamsVue3_2027 → `development-agent`). No approve/abandon command exists |
 | `config/config.json` | Azure DevOps org, branch rules, legacy repo, agreed projects |
 | `templates/vue3-starter/` | Vue 3 + PrimeVue 4 + Tailwind 4 + Pinia starter already wired for fams-ui-standards (palette, fonts, `apiService.js`, lint rules, budgets, tests) |
 | `deploy/install.sh` | Installs into the Paperclip container at `/paperclip/fams-vue-agents` |
@@ -160,12 +160,15 @@ to `config/config.json → write_targets` (in git), push, and re-run the install
 ```json
 "write_targets": {
   "list": [
-    { "project": "<DevOps project>", "repo": "<repo>", "paths": ["<folder>/"], "note": "what this is for" }
+    { "project": "<DevOps project>", "repo": "<repo>", "paths": ["<folder>/"], "base_branch": "development-agent", "note": "what this is for" }
   ]
 }
 ```
 
-`paths` are folder prefixes ending in `/` (several allowed). The repo needs a
+`paths` are folder prefixes ending in `/` (several allowed), or `"./"` for the whole repo. `base_branch` (optional, default `development`) is the branch the agents branch from and the only branch their PRs may target. First target: **FamsVue3_2027 / FamsVue3_2027, `FAMS-UI/`, base `development-agent`**. `agents_merge: true` lets the FAMS Vue Lead complete PRs into that base branch (`pr-complete`, after Tester PASS + Reviewer APPROVE); without it a human merges.
+
+**Azure DevOps for FamsVue3_2027** (FAMS Agents group): repo Allow Read, Contribute, Create branch, Contribute to pull requests; Deny Force push, Create tag, Bypass policies (both). Branch security: `master` and `development` → Contribute **Deny**; `development-agent` → Contribute **Allow** (needed to complete PRs; direct pushes are still refused by devops.mjs and the pre-push hook). Don't put a required-reviewer policy on `development-agent`, or the Lead can't complete PRs; keep `master` protected with human reviewers.
+After changing the agents' instructions text (`agent/PAPERCLIP_INSTRUCTIONS.md`), refresh them with `create-agents.mjs --update-instructions` (see section 3). The repo needs a
 `development` branch. The agents can then branch/commit/push/PR there — only inside those
 folders, only via `agents_features/…` / `agents_bugfixes/…` branches, PRs into
 `development` only. Mention the same repo + folder on the issue.

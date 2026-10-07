@@ -28,6 +28,10 @@ them), and end the run. Don't guess.
 
 ## 2. Prepare
 
+`<base>` below = the repo's agent base branch (`base_branch` of its write target in
+config.json; **FamsVue3_2027 → `development-agent`**, otherwise `development`). Name it
+in every sub-issue so the Tester and Reviewer diff against the right branch.
+
 ```
 S=/paperclip/fams-vue-agents/scripts
 node $S/devops.mjs clone  --project <P> --repo <R>
@@ -63,7 +67,7 @@ Usual order:
    page if needed).
 2. **FAMS Vue HTML-CSS** — pages/components that consume those composables.
 3. **FAMS Vue Tester** — tests + `npm run check` + both themes + acceptance criteria.
-4. **FAMS Vue Reviewer** — independent review of `git diff origin/development...HEAD`.
+4. **FAMS Vue Reviewer** — independent review of `git diff origin/<base>...HEAD`.
 
 Create the next sub-issue only when the previous one is done (shared clone **and**
 shared Claude subscription — **never have two Vue agents working at the same time**,
@@ -73,7 +77,7 @@ Reviewer findings → a new sub-issue to the developer who owns that lane, then 
 re-review. After three rounds on the same problem, stop and escalate to the FAMS Product
 Leader with the evidence.
 
-## 5. Pull request
+## 5. Pull request and merge
 
 When the Reviewer's verdict is **APPROVE** and the Tester's last run is green:
 
@@ -83,11 +87,27 @@ node $S/devops.mjs pr-create --repo <R> --title "<key>: <summary>" --body-file p
 
 `pr.md` contains: what and why, screens/files changed, endpoints used (with legacy
 references), Tester results (commands + pass counts + budget numbers), Reviewer verdict
-and any accepted exceptions, and "Human approval required — agents do not merge".
+and any accepted exceptions. The PR always goes into the repo's base branch.
 
-Comment the PR link on the request issue, set it to in review, and end the run. On a
+**Repo with `agents_merge: true` (FamsVue3_2027 → `development-agent`):** you complete
+the PR yourself, in the same run:
+
+```
+node $S/devops.mjs pr-complete --repo <R> --id <PR>
+```
+
+Only when the Tester's last verdict is PASS and the Reviewer's last verdict is APPROVE
+for the commit in the PR — never to skip a failing check. `pr-complete` refuses drafts,
+conflicts, a reviewer's reject, non-agent source branches and any other target. If it
+reports a pending policy, comment on the request issue and end the run; never ask for a
+bypass. Then comment the PR link + merge result on the request issue, close it with a
+short summary, and tell the requester that it is in `development-agent`. Moving it on to
+`master` is for humans only.
+
+**Any other repo:** add "Human approval required — agents do not merge" to `pr.md`,
+comment the PR link on the request issue, set it to in review and end the run. On a
 later wake, `devops.mjs pr-status` / `pr-comments`: human review comments become new
-sub-issues; when the PR is completed by a human, close the request issue with a short
+sub-issues; when a human has completed the PR, close the request issue with a short
 summary.
 
 ## 6. First job: study the legacy FAMS-UI

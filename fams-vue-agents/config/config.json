@@ -8,7 +8,7 @@
     "api_version": "7.1"
   },
   "git": {
-    "_comment": "Tecmo branching model: master = production, development = integration (everything awaiting the next production build). Work branches are made from development. Agents may only create/push their OWN branches: agents_features/<issue>-<slug> or agents_bugfixes/<mon><yyyy>/<issue>-<slug> (mon = jan feb mar apr may jun jul aug sept oct nov dec, like the team's bugfixes/sept2024). PRs go into development only.",
+    "_comment": "Tecmo branching model: master = production, development = integration (everything awaiting the next production build). Work branches are made from development. Agents may only create/push their OWN branches: agents_features/<issue>-<slug> or agents_bugfixes/<mon><yyyy>/<issue>-<slug> (mon = jan feb mar apr may jun jul aug sept oct nov dec, like the team's bugfixes/sept2024). PRs go into development only. A write target may set its own base_branch (e.g. development-agent): agents then branch from it and open PRs only into it.",
     "author_name": "FAMS Vue Agents",
     "author_email": "fams-agents@fams.co.za",
     "base_branch": "development",
@@ -20,6 +20,7 @@
       "master*",
       "main",
       "development",
+      "development*",
       "develop",
       "dev",
       "release/*",
@@ -32,7 +33,7 @@
   },
   "workspace": "/paperclip/fams-vue-agents/workspace",
   "legacy": {
-    "_comment": "Legacy Vue 2 portal - study reference (fams-ui-standards \u00a75).",
+    "_comment": "Legacy Vue 2 portal - study reference (fams-ui-standards §5).",
     "project": "Fams24",
     "repo": "Fams24",
     "path": "FAMS-UI"
@@ -54,7 +55,18 @@
     ]
   },
   "write_targets": {
-    "_comment": "The ONLY places the agents may change code: added by Hennie per project ({project, repo, paths:[\"folder/\"], note}). Branch/commit/push/PR are refused everywhere else. Empty until Hennie gives the first repo + folder.",
-    "list": []
+    "_comment": "The ONLY places the agents may change code: added by Hennie per project ({project, repo, paths:[\"folder/\"] or [\"./\"] for the whole repo, base_branch (optional, default git.base_branch), agents_merge (optional: true = the Lead may complete PRs into base_branch), note}). Branch/commit/push/PR are refused everywhere else.",
+    "list": [
+      {
+        "project": "FamsVue3_2027",
+        "repo": "FamsVue3_2027",
+        "paths": [
+          "FAMS-UI/"
+        ],
+        "base_branch": "development-agent",
+        "note": "FAMS Vue 3 portal (2027). Agents work only in FAMS-UI/. They branch from development-agent; the Lead completes their PRs into development-agent (pr-complete) after Tester PASS + Reviewer APPROVE. Never development (humans' component experiments) or master.",
+        "agents_merge": true
+      }
+    ]
   }
 }
