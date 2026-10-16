@@ -6,34 +6,56 @@ DEPRECATED · ARCHIVED; "not started" = placeholder only.
 A skill becomes VALID when Hennie has reviewed it against the code/decisions named under
 Sources. Only VALID skills are given to agents.
 
-## New skill set
+## Factory skill set (D16, 16 Oct 2026: Blueprint Rev 2 §79 seed + §80 roles)
+
+### Core and knowledge (§79 seed)
 
 | Skill | Folder | Version | Status | For | Sources | Last validated | Next review |
 |---|---|---|---|---|---|---|---|
-| factory-core | _core | 1.0.0 | VALID | every agent | Blueprint Rev 2; decisions r1–r3, D4–D11 (phase-1/READINESS.md); branching model | 2026-10-15 | Mission 0 retrospective |
-| factory-vue-shared | vue-team/_shared | 1.0.0 | VALID | 5 Vue agents | FamsVue3_2027 development-agent; FAMS-API TokenController, FAMSlegacyController, Program.cs; legacy Fams24 FAMS-UI main.js and moduleAuthActions.js; fams-ui-standards decisions (palette, fonts, speed, 6 Oct auth) | 2026-10-15 | Mission 0 retrospective |
-| factory-vue-lead | vue-team/vue-lead | 1.0.0 | VALID | FAMS Vue Lead | as above + Mission 0 plan | 2026-10-15 | Mission 0 retrospective |
-| factory-vue-html-css | vue-team/vue-html-css | 1.0.0 | VALID | FAMS Vue HTML-CSS | Verona layout files, layout.js | 2026-10-15 | Mission 0 retrospective |
-| factory-vue-javascript | vue-team/vue-javascript | 1.0.0 | VALID | FAMS Vue JavaScript | FAMS-API auth code, legacy main.js | 2026-10-15 | Mission 0 retrospective |
-| factory-vue-tester | vue-team/vue-tester | 1.0.0 | VALID | FAMS Vue Tester | package.json (no runner yet), build check 12 Oct | 2026-10-15 | Mission 0 retrospective |
-| factory-vue-reviewer | vue-team/vue-reviewer | 1.0.0 | VALID | FAMS Vue Reviewer | factory-core, factory-vue-shared | 2026-10-15 | Mission 0 retrospective |
-| factory-command-shared | command/_shared | 0.1.0 | UNDER REVIEW | command group | Blueprint Rev 2 summary; 90-day plan; decisions r1–r3, D4–D14; Notion IT Planning (FAMS Features, FAMS New Development) | — | on Hennie's review |
-| factory-product-leader | command/product-leader | 0.1.0 | UNDER REVIEW | CEO agent | as above; Vue/integrity agents' escalation rules; CEO AGENTS.md NOT yet compared (not in the repo) | — | on Hennie's review |
-| factory-challenger | command/challenger | 0.1.0 | UNDER REVIEW | Challenger (model c3 open) | Blueprint Rev 2 §41–46 (via summary) | — | on Hennie's review |
-| factory-knowledge-docs | command/knowledge-docs | 0.1.0 | UNDER REVIEW | Knowledge/Docs (k12 open) | Blueprint §18–21, §76; notion-mcp STATUS; D10, D12 | — | on Hennie's review |
-| factory-api-shared | api-team/_shared | — | not started | API team | — | — | — |
-| factory-api-architect | api-team/api-architect | — | not started | API Architect (Contract Guardian) | — | — | — |
-| factory-api-developer | api-team/api-developer | — | not started | API Developer | — | — | — |
-| factory-api-tester | api-team/api-tester | — | not started | API Tester | — | — | — |
-| factory-sql-shared | sql-team/_shared | — | not started | SQL team | — | — | — |
-| factory-sql-developer | sql-team/sql-developer | — | not started | SQL Developer | — | — | — |
-| factory-sql-tester | sql-team/sql-tester | — | not started | SQL Tester | — | — | — |
-| factory-operations-shared | operations/_shared | — | not started | operations group | — | — | — |
-| factory-data-integrity | operations/data-integrity | — | not started | Data Integrity Agent | — | — | — |
-| factory-support | operations/support | — | not started | Support Agent | — | — | — |
+| factory-core (FAMS_CORE) | _core | 1.1.0 | REVIEW REQUIRED (D16 wording) | every factory agent | Blueprint Rev 2; decisions r1–r3, D4–D16 (phase-1/READINESS.md); branching model | 2026-10-15 (1.0.0) | on Hennie's review |
+| factory-vue-core (FAMS_VUE_CORE) | knowledge/vue-core | 1.1.0 | REVIEW REQUIRED (renamed from factory-vue-shared, wording only) | Vue Developer; Architecture, Unit Tester, Challenger on Vue work | FamsVue3_2027 development-agent; FAMS-API TokenController, FAMSlegacyController, Program.cs; legacy Fams24 FAMS-UI main.js and moduleAuthActions.js; fams-ui-standards decisions | 2026-10-15 (1.0.0) | on Hennie's review |
+| factory-api-core (FAMS_API_CORE) | knowledge/api-core | — | not started | ASP.NET Developer, Architecture, Unit Tester | — | — | pilot prep |
+| factory-database-core (FAMS_DATABASE_CORE) | knowledge/database-core | — | not started | SQL Developer, Architecture, Unit Tester | — | — | pilot prep (r5) |
+| factory-tanks (FAMS_TANKS) | knowledge/tanks | — | not started | pilot roles | — | — | pilot prep (archaeology §78) |
+| factory-atg (FAMS_ATG) | knowledge/atg | — | not started | pilot roles | — | — | pilot prep (archaeology §78) |
+| factory-mission (Feature Template) | knowledge/mission | 0.2.0 | UNDER REVIEW (renamed from factory-command-shared; 8-role team) | Coordinator, Architecture, Knowledge/Docs, Challenger | Blueprint Rev 2 §59, §80–§83; 90-day plan; decisions r1–r3, D4–D16 | — | on Hennie's review |
+
+### Roles (§80 first mini-team)
+
+| # | Skill | Folder | Version | Status | Paperclip agent | Loads | Made from |
+|---|---|---|---|---|---|---|---|
+| 1 | factory-product-leader | roles/1-product-coordinator | 0.2.0 | UNDER REVIEW | FAMS Product Leader (ex-CEO) | core, mission | command/product-leader |
+| 2 | factory-research-architecture | roles/2-research-architecture | 1.1.0 | REVIEW REQUIRED | Research / Architecture Agent (ex-Vue Lead) | core, mission, vue-core (+ api-core, database-core, tanks, atg for the pilot) | vue-lead 1.0.0 + api-architect plan + §78 |
+| 3 | factory-sql-developer | roles/3-sql-developer | — | not started | not created | core, database-core, tanks, atg | sql-developer stub |
+| 4 | factory-api-developer (ASP.NET Developer) | roles/4-aspnet-developer | — | not started | not created | core, api-core, database-core | api-developer stub |
+| 5 | factory-vue-developer | roles/5-vue-developer | 1.1.0 | REVIEW REQUIRED | Vue Developer (ex-Vue JavaScript) | core, vue-core | vue-javascript 1.0.0 + vue-html-css 1.0.0 merged |
+| 6 | factory-unit-tester | roles/6-unit-tester | 1.1.0 | REVIEW REQUIRED | Unit Tester (ex-Vue Tester) | core, vue-core (+ api-core, database-core for the pilot) | vue-tester 1.0.0 + api/sql tester plans |
+| 7 | factory-knowledge-docs | roles/7-knowledge-docs | 0.2.0 | UNDER REVIEW | not created | core, mission | command/knowledge-docs |
+| 8 | factory-challenger | roles/8-challenger | 0.2.0 | UNDER REVIEW | Independent Challenger (ex-Vue Reviewer) | core, mission, vue-core | command/challenger + vue-reviewer 1.0.0 checklist |
+
+Paused: the Vue HTML-CSS agent (work moved to the Vue Developer). Outside the factory, with
+their existing skills: Database Integrity Agent, FAMS Support Agent.
+
+### Deprecated (kept because Paperclip cannot delete an imported skill)
+
+All in `_deprecated/<name>/`, 16 Oct 2026 (D16). Each SKILL.md now only says what replaced it.
+
+| Skill | Replaced by |
+|---|---|
+| factory-command-shared | factory-mission |
+| factory-vue-shared | factory-vue-core |
+| factory-vue-lead | factory-research-architecture |
+| factory-vue-html-css, factory-vue-javascript | factory-vue-developer |
+| factory-vue-tester, factory-api-tester, factory-sql-tester | factory-unit-tester |
+| factory-vue-reviewer | factory-challenger |
+| factory-api-shared | factory-api-core |
+| factory-api-architect | factory-research-architecture (Contract Guardian) |
+| factory-sql-shared | factory-database-core |
+| factory-operations-shared, factory-data-integrity, factory-support | nothing (agents stay outside the factory) |
 
 ## Change history
 
+- 2026-10-16 — D16: team realigned to Blueprint Rev 2 §80 (8 roles) and §79 seed names. New: factory-research-architecture, factory-vue-developer, factory-unit-tester, factory-vue-core, factory-api-core, factory-database-core, factory-tanks, factory-atg, factory-mission. Kept and updated: factory-core, factory-product-leader, factory-challenger, factory-knowledge-docs, factory-sql-developer, factory-api-developer. 15 deprecated. Changed VALID skills set to REVIEW REQUIRED until Hennie re-approves — Claude for Hennie.
 - 2026-10-16 — D15 wording: the app shell is Mission 0 (FAMS-2027-00000, shakedown); the tank card is the pilot (FAMS-2027-00001) the Day-90 gate is judged on. Wording only in factory-vue-lead, -javascript, -tester, factory-challenger, factory-command-shared, two placeholders, README — Claude for Hennie.
 - 2026-10-15 — command group drafted: factory-command-shared, factory-product-leader, factory-challenger, factory-knowledge-docs (0.1.0, UNDER REVIEW) — Claude for Hennie.
 - 2026-10-15 — backend-team split into api-team (_shared, api-architect, api-developer, api-tester) and sql-team (_shared, sql-developer, sql-tester); the Unit Tester role sits per team — Claude for Hennie.

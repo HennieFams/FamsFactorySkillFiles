@@ -4,13 +4,14 @@ description: >
   Read first, in every run, by every FAMS factory agent. What FAMS is, who decides what,
   the rules no agent may break (read-only production, no merging, no secrets, human
   approval list, stop rule), where the truth lives (Git, Notion, Paperclip, skills), the
-  repos and branch names, and how to escalate to Hennie. Your group's _shared skill and
-  your own role skill build on this one; where they disagree, this skill wins.
+  repos and branch names, and how to escalate to Hennie. Your knowledge skills (knowledge/…) and
+  your own role skill (roles/…) build on this one; where they disagree, this skill wins.
 ---
 
 # FAMS factory — core rules for every agent
 
-Group skills (`<group>/_shared`) and role skills (`<group>/<agent>`) add to this file.
+Knowledge skills (`knowledge/<topic>`) and role skills (`roles/<n>-<role>`) add to this file.
+The factory team is the 8 roles of Blueprint Rev 2 §80 (decision D16, 16 Oct 2026).
 Read this one in full once per run; read the others one section at a time, when you need it.
 
 ## 1. What FAMS is
@@ -33,7 +34,7 @@ Terms you will see:
 | Stock | Tank level records. |
 | Daily boundary | Reports run 06:00 → 06:00 SAST unless an account says otherwise. |
 
-Table names and data lineage belong to the SQL team and the operations group; don't guess them
+Table names and data lineage belong to the SQL Developer (factory-database-core); don't guess them
 in UI work. Time zone for everything human-facing: **Africa/Johannesburg (SAST, UTC+2)**.
 
 ## 2. Who decides (Product Board, 2026)
@@ -50,7 +51,7 @@ Andre or Franco. Ask on the Paperclip issue and end your run; do not wait in a l
 ## 3. Rules no agent may break
 
 1. **Production is read-only.** The one exception is the **live FAMS-API through the
-   dedicated agent login** (factory-vue-shared §3): only the calls your issue needs, never a
+   dedicated agent login** (factory-vue-core §3): only the calls your issue needs, never a
    call that creates, changes or deletes FAMS data. Never write, update, delete or migrate production data,
    never change Azure resources, never change branch policies or repo permissions.
 2. **Agents never merge.** You may open a pull request; a human completes it. Never push to
@@ -71,8 +72,8 @@ Andre or Franco. Ask on the Paperclip issue and end your run; do not wait in a l
 6. **No invented facts.** If a rule, threshold, table or field is not in a skill, the code
    or an issue comment from a human, ask. Thresholds (e.g. when a tank counts as "not
    communicating") are Product Owner decisions; never make one up.
-7. **Developers never approve their own work.** Build → test (Tester / Unit Tester) →
-   review (Reviewer) → challenge (Challenger, when required) → human.
+7. **Developers never approve their own work.** Build → test (Unit Tester) →
+   challenge (Independent Challenger) → human review and merge (Hennie).
 8. **Stop rule.** The same sub-task fails 3 times → stop, write what you tried and why it
    failed on the issue, and hand it to Hennie. Do not try a fourth time.
 9. **One agent at a time.** The agents share one Claude subscription; never start parallel
@@ -97,10 +98,10 @@ If two sources disagree, report it on the issue; don't pick one silently.
 - Human branches: `user_features/…`, `bugfixes/<monyyyy>/…`. **Agent branches:**
   `agents_features/<issue>-<slug>` and `agents_bugfixes/<monyyyy>/<issue>-<slug>` only.
 - Each agent may write only in its configured write targets (repo + folder). Everything
-  else is read-only. Repo work goes only through the group's DevOps script.
+  else is read-only. Repo work goes only through the DevOps script in your AGENTS.md.
 - FamsVue3_2027 (new Vue 3 portal): agents work in `FAMS-UI/`, branch from and open PRs into
   `development-agent`. Fams24 (legacy FAMS-UI Vue 2 + FAMS-API): read-only study.
-- FAMS-API code belongs to the API agent group. Other groups never change it; if a screen
+- FAMS-API code belongs to the ASP.NET Developer. Other roles never change it; if a screen
   needs an endpoint that doesn't exist, ask on the issue.
 
 ## 6. Every run
