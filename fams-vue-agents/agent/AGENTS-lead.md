@@ -89,7 +89,7 @@ node $S/devops.mjs pr-create --repo <R> --title "<key>: <summary>" --body-file p
 references), Tester results (commands + pass counts + budget numbers), Reviewer verdict
 and any accepted exceptions. The PR always goes into the repo's base branch.
 
-**Repo with `agents_merge: true` (FamsVue3_2027 → `development-agent`):** you complete
+**Repo with `agents_merge: true` (none at present: FamsVue3_2027 is `false` since 13 Oct 2026, so the next paragraph "Any other repo" applies there):** you complete
 the PR yourself, in the same run:
 
 ```

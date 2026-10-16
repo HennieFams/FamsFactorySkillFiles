@@ -110,7 +110,9 @@ test('the real config: FamsVue3_2027 is writable only in FAMS-UI/, from developm
 });
 
 test('pr-complete: only active, non-draft PRs from agent branches into a base branch with agents_merge', () => {
-  const t = writeTarget('FamsVue3_2027', 'FamsVue3_2027');
+  const real = writeTarget('FamsVue3_2027', 'FamsVue3_2027');
+  // FamsVue3_2027 has agents_merge false since 13 Oct 2026: a human completes every PR.
+  const t = { ...real, agents_merge: true };
   const ok = { status: 'active', isDraft: false, mergeStatus: 'succeeded', sourceRefName: 'refs/heads/agents_features/tec-1-x', targetRefName: 'refs/heads/development-agent', reviewers: [{ displayName: 'Hennie', vote: 10 }] };
   assert.equal(prCompleteProblem(ok, t), null);
   assert.match(prCompleteProblem({ ...ok, targetRefName: 'refs/heads/master' }, t), /only complete PRs into development-agent/);
@@ -122,6 +124,7 @@ test('pr-complete: only active, non-draft PRs from agent branches into a base br
   assert.match(prCompleteProblem({ ...ok, reviewers: [{ displayName: 'Hennie', vote: -10 }] }, t), /rejected/);
   assert.match(prCompleteProblem(ok, { ...t, agents_merge: false }), /a human merges/);
   assert.match(prCompleteProblem(ok, null), /a human merges/);
+  assert.match(prCompleteProblem(ok, real), /a human merges/);
 });
 
 test('repo URL is built without credentials', () => {

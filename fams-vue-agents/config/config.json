@@ -64,8 +64,8 @@
           "FAMS-UI/"
         ],
         "base_branch": "development-agent",
-        "note": "FAMS Vue 3 portal (2027). Agents work only in FAMS-UI/. They branch from development-agent; the Lead completes their PRs into development-agent (pr-complete) after Tester PASS + Reviewer APPROVE. Never development (humans' component experiments) or master.",
-        "agents_merge": true
+        "note": "FAMS Vue 3 portal (2027). Agents work only in FAMS-UI/. They branch from development-agent and open PRs into it; a human (Hennie) completes every PR (agents_merge false since 13 Oct 2026). Never development (humans' component experiments) or master.",
+        "agents_merge": false
       }
     ]
   }

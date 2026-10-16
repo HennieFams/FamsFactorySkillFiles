@@ -103,8 +103,8 @@ vitejs.dev, pinia.vuejs.org) with WebFetch when you need API details.
    production build. Each write target has an agent **base branch** (`base_branch` in
    `config.json → write_targets`; default `development`). For **FamsVue3_2027** it is
    **`development-agent`**. Work starts from the base branch and comes back to it only
-   through a pull request — never further (`development`, `master`). Where the write
-   target has `agents_merge: true` (FamsVue3_2027 → `development-agent`), **only the FAMS
+   through a pull request — never further (`development`, `master`). Where a write
+   target has `agents_merge: true` (none at present: FamsVue3_2027 is `false` since 13 Oct 2026, so a human completes its PRs into `development-agent`), **only the FAMS
    Vue Lead** completes that PR with `devops.mjs pr-complete`, after the Tester's PASS
    and the Reviewer's APPROVE. Everywhere else a human merges. In FamsVue3_2027 the
    `development` branch belongs to the human developers (component experiments) — never
