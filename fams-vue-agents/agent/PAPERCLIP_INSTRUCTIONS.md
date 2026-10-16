@@ -13,7 +13,7 @@ Before anything else, run these two commands as your very first actions:
     cat /paperclip/fams-vue-agents/agent/COMMON.md
     cat /paperclip/fams-vue-agents/agent/AGENTS-lead.md
 
-Follow them exactly, together with your attached skills. fams-ui-standards wins over the other Vue skills where they conflict; FAMS Core wins over everything.
+Follow them exactly, together with your attached skills. factory-core wins over factory-vue-shared, which wins over your role skill.
 Everything you need is in those files, your skills, /paperclip/fams-vue-agents/skills/ and /paperclip/fams-vue-agents/workspace/knowledge/. Never web-search for FAMS facts. If something seems missing, re-read those files, then ask the requester on the issue.
 
 Git and Azure DevOps only through node /paperclip/fams-vue-agents/scripts/devops.mjs. Only agents_features/<issue>-<slug> or agents_bugfixes/<mon><yyyy>/<issue>-<slug> branches, made from the repo's agent base branch (its write target's base_branch in config.json, e.g. development-agent; default development); nothing reaches that branch except through a pull request into it (completed by the FAMS Vue Lead with devops.mjs pr-complete only where config allows it; at present no write target allows it, so a human merges), and agents never touch development or master. Never print or read anything under /paperclip/fams-vue-agents/secrets/.
@@ -32,7 +32,7 @@ Before anything else, run these two commands as your very first actions:
     cat /paperclip/fams-vue-agents/agent/COMMON.md
     cat /paperclip/fams-vue-agents/agent/AGENTS-html-css.md
 
-Follow them exactly, together with your attached skills. fams-ui-standards wins over the other Vue skills where they conflict; FAMS Core wins over everything.
+Follow them exactly, together with your attached skills. factory-core wins over factory-vue-shared, which wins over your role skill.
 Everything you need is in those files, your skills, /paperclip/fams-vue-agents/skills/ and /paperclip/fams-vue-agents/workspace/knowledge/. Never web-search for FAMS facts. If something seems missing, re-read those files, then ask the FAMS Vue Lead on your issue.
 
 Git and Azure DevOps only through node /paperclip/fams-vue-agents/scripts/devops.mjs. Only agents_features/<issue>-<slug> or agents_bugfixes/<mon><yyyy>/<issue>-<slug> branches, made from the repo's agent base branch (its write target's base_branch in config.json, e.g. development-agent; default development); nothing reaches that branch except through a pull request into it (completed by the FAMS Vue Lead with devops.mjs pr-complete only where config allows it; at present no write target allows it, so a human merges), and agents never touch development or master. Never print or read anything under /paperclip/fams-vue-agents/secrets/.
@@ -51,7 +51,7 @@ Before anything else, run these two commands as your very first actions:
     cat /paperclip/fams-vue-agents/agent/COMMON.md
     cat /paperclip/fams-vue-agents/agent/AGENTS-javascript.md
 
-Follow them exactly, together with your attached skills. fams-ui-standards wins over the other Vue skills where they conflict; FAMS Core wins over everything.
+Follow them exactly, together with your attached skills. factory-core wins over factory-vue-shared, which wins over your role skill.
 Everything you need is in those files, your skills, /paperclip/fams-vue-agents/skills/ and /paperclip/fams-vue-agents/workspace/knowledge/. Never web-search for FAMS facts. If something seems missing, re-read those files, then ask the FAMS Vue Lead on your issue.
 
 Git and Azure DevOps only through node /paperclip/fams-vue-agents/scripts/devops.mjs. Only agents_features/<issue>-<slug> or agents_bugfixes/<mon><yyyy>/<issue>-<slug> branches, made from the repo's agent base branch (its write target's base_branch in config.json, e.g. development-agent; default development); nothing reaches that branch except through a pull request into it (completed by the FAMS Vue Lead with devops.mjs pr-complete only where config allows it; at present no write target allows it, so a human merges), and agents never touch development or master. Never print or read anything under /paperclip/fams-vue-agents/secrets/.
@@ -70,7 +70,7 @@ Before anything else, run these two commands as your very first actions:
     cat /paperclip/fams-vue-agents/agent/COMMON.md
     cat /paperclip/fams-vue-agents/agent/AGENTS-tester.md
 
-Follow them exactly, together with your attached skills. fams-ui-standards wins over the other Vue skills where they conflict; FAMS Core wins over everything.
+Follow them exactly, together with your attached skills. factory-core wins over factory-vue-shared, which wins over your role skill.
 Everything you need is in those files, your skills, /paperclip/fams-vue-agents/skills/ and /paperclip/fams-vue-agents/workspace/knowledge/. Never web-search for FAMS facts. If something seems missing, re-read those files, then ask the FAMS Vue Lead on your issue.
 
 Git and Azure DevOps only through node /paperclip/fams-vue-agents/scripts/devops.mjs. Only agents_features/<issue>-<slug> or agents_bugfixes/<mon><yyyy>/<issue>-<slug> branches, made from the repo's agent base branch (its write target's base_branch in config.json, e.g. development-agent; default development); nothing reaches that branch except through a pull request into it (completed by the FAMS Vue Lead with devops.mjs pr-complete only where config allows it; at present no write target allows it, so a human merges), and agents never touch development or master. Never print or read anything under /paperclip/fams-vue-agents/secrets/.
@@ -89,7 +89,7 @@ Before anything else, run these two commands as your very first actions:
     cat /paperclip/fams-vue-agents/agent/COMMON.md
     cat /paperclip/fams-vue-agents/agent/AGENTS-reviewer.md
 
-Follow them exactly, together with your attached skills. fams-ui-standards wins over the other Vue skills where they conflict; FAMS Core wins over everything.
+Follow them exactly, together with your attached skills. factory-core wins over factory-vue-shared, which wins over your role skill.
 Everything you need is in those files, your skills, /paperclip/fams-vue-agents/skills/ and /paperclip/fams-vue-agents/workspace/knowledge/. Never web-search for FAMS facts. If something seems missing, re-read those files, then ask the FAMS Vue Lead on your issue.
 
 Git and Azure DevOps only through node /paperclip/fams-vue-agents/scripts/devops.mjs. Only agents_features/<issue>-<slug> or agents_bugfixes/<mon><yyyy>/<issue>-<slug> branches, made from the repo's agent base branch (its write target's base_branch in config.json, e.g. development-agent; default development); nothing reaches that branch except through a pull request into it (completed by the FAMS Vue Lead with devops.mjs pr-complete only where config allows it; at present no write target allows it, so a human merges), and agents never touch development or master. Never print or read anything under /paperclip/fams-vue-agents/secrets/.

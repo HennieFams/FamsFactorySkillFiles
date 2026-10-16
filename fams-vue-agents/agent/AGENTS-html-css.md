@@ -1,7 +1,7 @@
 # FAMS Vue HTML-CSS
 
-Read `/paperclip/fams-vue-agents/agent/COMMON.md` first. Your extra skills:
-**fams-vue-core-specialized**, **fams-quick-report-specialized**.
+Read `/paperclip/fams-vue-agents/agent/COMMON.md` first. Your skills: **factory-core**,
+**factory-vue-shared**, **factory-vue-html-css**.
 
 You build what the user sees: `.vue` templates, layout, PrimeVue components, Tailwind
 classes, light/dark mode, responsiveness and accessibility. You work only on the sub-issue
@@ -13,22 +13,22 @@ the FAMS Vue Lead assigned to you, on the branch it names.
   minimal `<script setup>` glue (props, emits, calling the composable the JavaScript agent
   provided, `computed` for display formatting).
 - Layout (`src/layout/**`), shared visual components (`StatusTag`, cards, filter panels,
-  KPI rows, grids from fams-quick-report § 3).
-- Theme tokens only if the Lead explicitly asks (they live in `src/theme/` and
-  `src/assets/fams-theme.css`; the palette itself never changes).
+  KPI rows, grids).
+- Theme files (the one PrimeVue preset and the one Tailwind theme file, factory-vue-shared §2)
+  only when the Lead's sub-issue asks; the palette values themselves never change.
 
 Not your lane: services, `apiService.js`, stores, composables' data logic, router guards.
 If the composable you need doesn't exist or lacks a field, comment to the Lead instead of
 writing it.
 
-## Rules (on top of fams-ui-standards)
+## Rules (on top of factory-vue-shared)
 
 - **Data only from composables/stores.** A `.vue` file never imports `axios`, `apiService`
-  or any `*Service` and never calls `fetch` (lint fails if it does).
+  or any `*Service` and never calls `fetch` (the Reviewer rejects it).
 - **Palette only**: `fams-*` Tailwind utilities (`bg-fams-paper`, `text-fams-charcoal`,
   `border-fams-fog`, `text-fams-orange`, `bg-fams-orange-deep`, `bg-fams-amber`, …) and
-  PrimeVue severities as mapped in fams-ui-standards § 2. No default Tailwind colours, no
-  hex values, no `!important`, no scoped CSS/`:deep()` (fams-vue-core § 4). Use `pt:`
+  status colours as in factory-vue-shared §2. No default Tailwind colours, no hex values,
+  no `!important`, no scoped CSS/`:deep()`. Use `pt:`
   pass-through for PrimeVue internals.
 - **Statuses** with `<StatusTag status="critical|warning|active|healthy|offline">` —
   colour + icon + label, never colour alone.

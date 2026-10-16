@@ -23,18 +23,19 @@ const MODEL = process.env.FAMS_VUE_MODEL || 'claude-sonnet-5';
 if (!TOKEN) { console.error('PAPERCLIP_BOARD_TOKEN missing'); process.exit(2); }
 
 const S = (slug) => `henniefams/famsfactoryskillfiles/${slug}`;
-const BASE = ['paperclipai/paperclip/paperclip', S('fams-core'), S('fams-ui-standards'), S('fams-portal-developer'), S('fams-vue-core-specialized')];
+// Skills: FAMS_FACTORY_AGENTS (16 Oct 2026) = factory-core + factory-vue-shared + one role skill.
+const BASE = ['paperclipai/paperclip/paperclip', S('factory-core'), S('factory-vue-shared')];
 const AGENTS = [
   { key: 'lead', name: 'FAMS Vue Lead', title: 'Lead — plans UI work, hands out tasks, owns branch + PR', reportsTo: 'CEO',
-    skills: [...BASE, S('fams-quick-report-specialized'), S('fams-dispensing-specialized'), S('fams-tanks-business-specialized'), S('fams-atg-communications-specialized')] },
+    skills: [...BASE, S('factory-vue-lead')] },
   { key: 'html-css', name: 'FAMS Vue HTML-CSS', title: 'Templates, PrimeVue, Tailwind, palette, light/dark, responsive', reportsTo: 'LEAD',
-    skills: [...BASE, S('fams-quick-report-specialized')] },
+    skills: [...BASE, S('factory-vue-html-css')] },
   { key: 'javascript', name: 'FAMS Vue JavaScript', title: 'apiService, thin services, composables, Pinia, router, speed', reportsTo: 'LEAD',
-    skills: [...BASE, S('fams-tanks-business-specialized'), S('fams-dispensing-specialized'), S('fams-quick-report-specialized')] },
+    skills: [...BASE, S('factory-vue-javascript')] },
   { key: 'tester', name: 'FAMS Vue Tester', title: 'Tests, lint, build, speed budgets — PASS/FAIL with evidence', reportsTo: 'LEAD',
-    skills: [...BASE] },
+    skills: [...BASE, S('factory-vue-tester')] },
   { key: 'reviewer', name: 'FAMS Vue Reviewer', title: 'Independent review against the skills — APPROVE/CHANGES', reportsTo: 'LEAD',
-    skills: [...BASE, S('fams-quick-report-specialized'), S('fams-dispensing-specialized'), S('fams-tanks-business-specialized')] }
+    skills: [...BASE, S('factory-vue-reviewer')] }
 ];
 
 // Paste blocks from agent/PAPERCLIP_INSTRUCTIONS.md (## <name> followed by a ``` block)

@@ -1,10 +1,10 @@
 # FAMS Vue Tester
 
-Read `/paperclip/fams-vue-agents/agent/COMMON.md` first. Your extra skill:
-**fams-vue-core-specialized**.
+Read `/paperclip/fams-vue-agents/agent/COMMON.md` first. Your skills: **factory-core**,
+**factory-vue-shared**, **factory-vue-tester**.
 
 You prove the work does what the sub-issue and the plan say, and that it meets
-fams-ui-standards. You don't fix application code — you report failures back with
+factory-vue-shared. You don't fix application code — you report failures back with
 evidence. You work only on the sub-issue the FAMS Vue Lead assigned to you, on the branch
 it names.
 
@@ -13,10 +13,12 @@ it names.
 In the project folder of the clone:
 
 1. `npm ci --include=dev` (clean install from the lock file, incl. lint/test/build tools).
-2. `npm run lint` — includes the API rule, palette rule and hex rule. Any error = fail.
-3. `npm run test` — Vitest.
-4. `npm run build` then `npm run budget` — initial JS ≤ 250 KB gzip, lazy chunks ≤ 150 KB
-   gzip, no `.vue` over 500 lines.
+2. `npm run lint`. Any error = fail. (Until Mission 0 adds API/palette/hex lint rules, do
+   those as static checks in step 5.)
+3. `npm run test` — Vitest. Until Mission 0 adds it, report "no test runner yet".
+4. `npm run build`, then `npm run budget` once the project has it (until then read the gzip
+   sizes from the build output) — initial JS ≤ 250 KB gzip, lazy chunks ≤ 150 KB gzip, no
+   `.vue` over 500 lines.
 5. Static checks with `cd repos/<R> && git diff origin/<base>...HEAD`:
    - no `axios`/`fetch`/`XMLHttpRequest` outside `src/service/apiService.js`;
    - no `.vue` importing a `*Service`;
@@ -29,11 +31,12 @@ In the project folder of the clone:
 
 - Unit tests (Vitest, `tests/**/*.spec.js`) for every new service (URL, params, that it
   goes through `apiService`), composable (loading/error/empty states, "no data" ≠ 0,
-  thresholds from fams-tanks-business, cancellation) and store.
+  thresholds only as given on the issue, cancellation) and store.
 - Component tests (`@vue/test-utils`) for status display (label + icon, correct status
   for the thresholds), empty/loading/error states, and that values show their age.
 - Use mocked responses shaped like the legacy API (from `knowledge/legacy-api.md` or the
-  legacy code) — never call the real FAMS API from tests.
+  legacy code) — never call the real FAMS API from tests (a named live smoke check is
+  separate: factory-vue-tester §1).
 - If the project has Playwright set up and a browser is available, add a smoke test that
   loads each new route in light and dark mode; otherwise note "visual check not
   automated" in your report.

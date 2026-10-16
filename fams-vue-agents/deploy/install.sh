@@ -10,7 +10,7 @@
 #     agent/        instructions for the 5 Vue agents (AGENTS-*.md, COMMON.md)
 #     scripts/      devops.mjs (the only way to touch Azure DevOps), git-askpass.sh
 #     config/       config.json (from git)
-#     skills/       copy of FamsFactorySkillFiles/FAMS_VUE_AGENTS (incl. docs/ and fams-dispensing/reference/)
+#     skills/       copy of FamsFactorySkillFiles/FAMS_FACTORY_AGENTS/_core and /vue-team (+ REGISTRY.md)
 #     templates/    vue3-starter
 #     secrets/      devops.pat  (chmod 600, never in git)
 #     workspace/    the agents' working folder (cwd): repos/<repo> clones, .claude/settings.json
@@ -24,7 +24,7 @@ set -euo pipefail
 C=${PAPERCLIP_CONTAINER:-docker-server-1}
 H=${FAMS_VUE_HOME:-/paperclip/fams-vue-agents}
 SRC=$(cd "$(dirname "$0")/.." && pwd)
-SKILLS=$(cd "$SRC/../FAMS_VUE_AGENTS" && pwd)
+SKILLS=$(cd "$SRC/../FAMS_FACTORY_AGENTS" && pwd)
 ASK_TOKEN=0; VERIFY_TEMPLATE=0
 for a in "$@"; do
   case "$a" in
@@ -62,10 +62,12 @@ docker exec -u 0 -e H="$H" "$C" bash -euo pipefail -c '
   cp -r /tmp/fva-src/tests     "$H/tests"
   cp -r /tmp/fva-src/agent     "$H/agent"
   cp -r /tmp/fva-src/templates "$H/templates"
-  cp -r /tmp/fva-skills        "$H/skills"
-  # Paperclip rejects skills that contain code, so fams-dispensing/reference/ lives in
-  # skill-assets/ in git and is put back here, where the (unchanged) SKILL.md says it is.
-  cp -r /tmp/fva-src/skill-assets/. "$H/skills/"
+  # Only the skills the Vue agents use: factory-core + the vue-team group (16 Oct 2026).
+  # The old FAMS_VUE_AGENTS copies are removed by the rm -rf above and not copied back.
+  mkdir -p "$H/skills/vue-team"
+  cp -r /tmp/fva-skills/_core           "$H/skills/_core"
+  cp -r /tmp/fva-skills/vue-team/.      "$H/skills/vue-team/"
+  cp    /tmp/fva-skills/REGISTRY.md     "$H/skills/REGISTRY.md"
   cp /tmp/fva-src/config/config.json "$H/config/config.json"
   cp /tmp/fva-src/deploy/workspace/claude-settings.json "$H/workspace/.claude/settings.json"
   cp /tmp/fva-src/README.md "$H/README.md"

@@ -92,15 +92,20 @@ tests, and the `whoami` JSON showing *FAMS Agents*. `--verify-template` ends wit
 `budget OK`.
 
 Then in Paperclip: **re-import skills** from the FamsFactorySkillFiles repo so the seven
-skills under `FAMS_VUE_AGENTS/` appear: `fams-ui-standards`, `fams-portal-developer`,
-`fams-vue-core-specialized`, `fams-tanks-business-specialized`,
-`fams-atg-communications-specialized`, `fams-quick-report-specialized`,
-`fams-dispensing-specialized`. (If the importer only looks one folder deep and they don't
-appear, tell Claude — the folders can be moved up a level without changing the files.
-`fams-dispensing`'s four `reference/` example files are kept in
-`fams-vue-agents/skill-assets/` because Paperclip rejects skills that contain code; the
-installer puts them back at `/paperclip/fams-vue-agents/skills/fams-dispensing/reference/`,
-where the unchanged SKILL.md points.)
+skills under `FAMS_FACTORY_AGENTS/` that the Vue agents use appear: `factory-core`,
+`factory-vue-shared`, `factory-vue-lead`, `factory-vue-html-css`, `factory-vue-javascript`,
+`factory-vue-tester`, `factory-vue-reviewer` (since 16 Oct 2026; the older
+`FAMS_VUE_AGENTS/` skills stay in the repo for reference but are no longer attached or
+copied). The installer copies `FAMS_FACTORY_AGENTS/_core` and `/vue-team` to
+`/paperclip/fams-vue-agents/skills/`.
+
+After a change to `agent/PAPERCLIP_INSTRUCTIONS.md`, rewrite the five agents' instructions
+files without the board token:
+
+```bash
+docker exec -u node docker-server-1 node /paperclip/fams-vue-agents/scripts/write-instructions.mjs --dry-run
+docker exec -u node docker-server-1 node /paperclip/fams-vue-agents/scripts/write-instructions.mjs
+```
 
 ## 3. Create the five agents in Paperclip
 
@@ -116,11 +121,13 @@ Agents → New Agent, once per row. For all five:
 
 | Name | Role | Reports to | Skills to attach |
 |---|---|---|---|
-| FAMS Vue Lead | general (manager) | FAMS Product Leader | FAMS Core, fams-ui-standards, fams-portal-developer, fams-vue-core-specialized, fams-quick-report-specialized, fams-dispensing-specialized, fams-tanks-business-specialized, fams-atg-communications-specialized |
-| FAMS Vue HTML-CSS | engineer | FAMS Vue Lead | FAMS Core, fams-ui-standards, fams-portal-developer, fams-vue-core-specialized, fams-quick-report-specialized |
-| FAMS Vue JavaScript | engineer | FAMS Vue Lead | FAMS Core, fams-ui-standards, fams-portal-developer, fams-vue-core-specialized, fams-tanks-business-specialized, fams-dispensing-specialized, fams-quick-report-specialized |
-| FAMS Vue Tester | qa | FAMS Vue Lead | FAMS Core, fams-ui-standards, fams-portal-developer, fams-vue-core-specialized |
-| FAMS Vue Reviewer | qa | FAMS Vue Lead | FAMS Core, fams-ui-standards, fams-portal-developer, fams-vue-core-specialized, fams-quick-report-specialized, fams-dispensing-specialized, fams-tanks-business-specialized |
+| FAMS Vue Lead | general (manager) | FAMS Product Leader | factory-core, factory-vue-shared, factory-vue-lead |
+| FAMS Vue HTML-CSS | engineer | FAMS Vue Lead | factory-core, factory-vue-shared, factory-vue-html-css |
+| FAMS Vue JavaScript | engineer | FAMS Vue Lead | factory-core, factory-vue-shared, factory-vue-javascript |
+| FAMS Vue Tester | qa | FAMS Vue Lead | factory-core, factory-vue-shared, factory-vue-tester |
+| FAMS Vue Reviewer | qa | FAMS Vue Lead | factory-core, factory-vue-shared, factory-vue-reviewer |
+
+(All five also keep Paperclip's own `paperclip` skill.)
 
 Use whatever Paperclip role names exist if these don't; what matters is *Reports to*.
 
@@ -134,7 +141,7 @@ Use whatever Paperclip role names exist if these don't; what matters is *Reports
 > see them attached, the skill folders on disk, and whether git push was blocked. Do not
 > clone, branch, commit or push anything.
 
-Expected: whoami = FAMS Agents; seven Vue skill folders + `docs`; `git push` denied.
+Expected: whoami = FAMS Agents; `REGISTRY.md`, `_core` and `vue-team` (with `_shared` + five role folders) on disk; attached skills = paperclip, factory-core, factory-vue-shared and the agent's own role skill; `git push` denied.
 
 **b) Legacy study — assign to FAMS Vue Lead:**
 > Study the legacy FAMS-UI portal (Azure DevOps TecmoFams / Fams24 / Fams24, folder

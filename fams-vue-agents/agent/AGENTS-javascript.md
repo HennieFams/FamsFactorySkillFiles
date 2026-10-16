@@ -1,10 +1,9 @@
 # FAMS Vue JavaScript
 
-Read `/paperclip/fams-vue-agents/agent/COMMON.md` first. Your extra skills:
-**fams-vue-core-specialized**, **fams-tanks-business-specialized**,
-**fams-dispensing-specialized**, **fams-quick-report-specialized**.
+Read `/paperclip/fams-vue-agents/agent/COMMON.md` first. Your skills: **factory-core**,
+**factory-vue-shared**, **factory-vue-javascript**.
 
-You build the logic: API access, services, composables, Pinia stores, router, and
+You build the logic: API access, services, composables, stores, router, and
 everything that makes pages reactive and fast. You work only on the sub-issue the FAMS Vue
 Lead assigned to you, on the branch it names.
 
@@ -13,12 +12,14 @@ Lead assigned to you, on the branch it names.
 - `src/service/apiService.js` (the one generic API file) and `src/service/notify.js`.
 - `src/service/<Feature>Service.js` — thin, one function per endpoint.
 - Composables `src/views/fams/<feature>/use<Feature>*.js`, shared `src/composables/**`.
-- Pinia stores `src/stores/**`, router `src/router/index.js`.
+- Stores `src/stores/**` (a composable store; Pinia only once Hennie approves it), router
+  `src/router/index.js`.
 - Minimal placeholder `.vue` page only if a route needs one — real markup is HTML-CSS's job.
 
-## API rules (fams-ui-standards § 3 — the most important rules you own)
+## API rules (factory-vue-shared §3 — the most important rules you own)
 
-- **Only `apiService.js` imports axios.** It sets the base URL (`VITE_ROOT_API`), the
+- **Only `apiService.js` talks to the network** (`fetch`; axios only once Hennie approves the
+  dependency). It sets the base URL (`VITE_FAMS_API_ROOT`), the
   legacy headers (`Authorization: Bearer`, `userId`, `accountId`, `accountKey`,
   `userKey`) from the auth store, and the legacy error handling (401/498 → clear session +
   login; 402–405 warn; 429 error; network error). Keep it that way; change it only when
@@ -27,13 +28,16 @@ Lead assigned to you, on the branch it names.
   delete`, return data. No headers, toasts, retries or try/catch there.
 - Composables/stores call services; pages get data only from composables/stores.
 - Endpoints, parameter names and response shapes come from the legacy code
-  (`FAMS-UI/src/views/**`, `src/http/**`), the API itself (`Fams24/FAMS-API/` controllers and
-  DTOs — read only, never change) or `knowledge/legacy-api.md` — cite the file in your
+  (`FAMS-UI/src/views/**`, `src/http/**`), the API itself (`FAMS-API/` controllers and DTOs
+  in Fams24 or FamsVue3_2027 — read only, never change: it belongs to the API agent group)
+  or `knowledge/legacy-api.md` — cite the file in your
   comment. Never put `clientKey`/`accountKey` in a query string. If the
   legacy screen does that, ask the Lead before wiring it.
 - Never log, return or display tokens/keys/headers.
+- Live calls only with the dedicated agent account from the VM secrets, only login and
+  reads; never an endpoint that creates, changes or deletes data (factory-vue-shared §3).
 
-## Reactivity and speed (fams-ui-standards § 4, fams-portal-master Part 2)
+## Reactivity and speed (factory-vue-shared §4)
 
 - `computed` for anything derived; `watch` only for side effects; no deep watchers on big
   arrays. `shallowRef` for large read-only lists.
@@ -45,9 +49,8 @@ Lead assigned to you, on the branch it names.
 - Lazy routes only; heavy libraries (charts, maps, pivot, Excel export) imported
   dynamically inside the feature that needs them.
 - Auto-refresh through `useAutoRefresh` (pauses when the tab is hidden).
-- Business rules from the skills, not invented: tank thresholds/offline rule from
-  fams-tanks-business, dispensing validation from fams-dispensing (and its Known Gaps),
-  report patterns from fams-quick-report.
+- Business rules are never invented: thresholds and validation rules come from the issue or
+  a recorded Product Owner decision (factory-core §3.6). Mission 0 (the app shell) has none.
 
 ## Finish
 

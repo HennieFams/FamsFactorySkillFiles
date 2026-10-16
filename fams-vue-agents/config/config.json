@@ -33,7 +33,7 @@
   },
   "workspace": "/paperclip/fams-vue-agents/workspace",
   "legacy": {
-    "_comment": "Legacy Vue 2 portal - study reference (fams-ui-standards §5).",
+    "_comment": "Legacy Vue 2 portal - study reference (factory-vue-shared §5).",
     "project": "Fams24",
     "repo": "Fams24",
     "path": "FAMS-UI"

@@ -22,17 +22,18 @@ line you read is paid for, and when the limit is hit *every* agent stops. Read o
 what the task needs.
 
 1. This file, then your own instructions file (named in your Paperclip instructions).
-2. **Skills load on demand — don't read them cover to cover.** Your attached skills
-   (FAMS Core, fams-ui-standards, fams-portal-developer, plus your own list) are there
-   when you need them. fams-ui-standards wins over the other Vue skills; FAMS Core wins
-   over everything. When a task needs a skill, find the section first and read only
-   that:
-   `grep -n '^#' /paperclip/fams-vue-agents/skills/<skill>/SKILL.md` →
-   `sed -n '<from>,<to>p' …`. fams-portal-master is 1,800 lines — never read it whole.
-3. Full copies of all Vue skills (including `fams-dispensing/reference/*` and the
-   integration index/archive under `docs/`) are on disk at
-   `/paperclip/fams-vue-agents/skills/`. `FAMS_API_CORE-v2.md` does not exist — don't
-   look for it.
+2. **Skills load on demand — don't read them cover to cover.** You have three skills:
+   **factory-core** (rules for every FAMS factory agent), **factory-vue-shared** (what the
+   whole Vue team needs: the app, palette, API and session rules, speed) and your role
+   skill (**factory-vue-lead**, **-html-css**, **-javascript**, **-tester** or
+   **-reviewer**). factory-core wins over factory-vue-shared; factory-vue-shared wins over
+   your role skill. When a task needs a skill, find the section first and read only that:
+   `grep -n '^#' /paperclip/fams-vue-agents/skills/vue-team/_shared/SKILL.md` →
+   `sed -n '<from>,<to>p' …`.
+3. Copies of your skills are on disk at `/paperclip/fams-vue-agents/skills/`:
+   `_core/SKILL.md`, `vue-team/_shared/SKILL.md` and `vue-team/<role>/SKILL.md`. The older
+   Vue skills (fams-ui-standards, fams-portal-developer, fams-vue-core-specialized and the
+   business skills) are no longer yours; don't look for them.
 4. Notes from earlier work are in `/paperclip/fams-vue-agents/workspace/knowledge/`.
    Read `knowledge/INDEX.md` first, then only the knowledge file (and section) you need.
 5. If `workspace/notes/<issue-key>.md` exists, you were here before: read it and
@@ -71,7 +72,8 @@ vitejs.dev, pinia.vuejs.org) with WebFetch when you need API details.
 - Node/npm run inside each project folder: `npm ci --include=dev` (the container has
   `NODE_ENV=production`, so plain `npm ci` skips lint/test/build tools), `npm run dev`, `npm run lint`,
   `npm run test`, `npm run build`, `npm run budget`, `npm run check`.
-- New projects start from `/paperclip/fams-vue-agents/templates/vue3-starter`.
+- New projects in an **empty** repo start from `/paperclip/fams-vue-agents/templates/vue3-starter`.
+  FamsVue3_2027 does not: it starts from its own bare Verona template on `development-agent`.
 
 ## Token budget (shared subscription)
 
@@ -113,14 +115,14 @@ vitejs.dev, pinia.vuejs.org) with WebFetch when you need API details.
    You only push `agents_features/<issue>-<slug>` (feature) or `agents_bugfixes/<mon><yyyy>/<issue>-<slug>` (bug fix, e.g. `agents_bugfixes/oct2026/tec-12-totals`) branches — never `master`, `development`, `development-agent`, `bugfixes/...`, `feature/...` or anyone's `*_features/...`. You never approve or abandon a PR, never complete one except as the Lead in step 1, and
    never ask a human to bypass a branch policy.
 2. **No secrets anywhere** — not in code, `.env` files, commits, issue comments or PRs.
-   The legacy repo contains API/licence keys (fams-ui-standards §5): never copy them.
+   The FAMS repos contain API keys and credentials (factory-core §3.3): never open, copy or quote them.
    Never print, cat or log `/paperclip/fams-vue-agents/secrets/*`.
-3. **Follow fams-ui-standards**: FAMS palette and fonts only; API calls only through
+3. **Follow factory-vue-shared**: FAMS palette and fonts only; API calls only through
    `src/service/apiService.js` + thin `<Feature>Service.js`; no API calls or service
    imports in `.vue` files; lazy routes; speed budgets; plain JavaScript.
 4. **Don't invent FAMS behaviour.** Endpoints, parameters, field meanings and business
    rules come from the legacy code (cite file + line), the skills, or a human answer on
-   the issue. If unknown, ask — don't guess (FAMS Core evidence standard).
+   the issue. If unknown, ask — don't guess (factory-core §3.6).
 5. **Developers don't approve their own work.** HTML-CSS and JavaScript never mark their
    own work as tested or reviewed. A failing test goes back to development; it is never
    fixed by weakening or deleting the test.
@@ -132,9 +134,12 @@ vitejs.dev, pinia.vuejs.org) with WebFetch when you need API details.
    ignore it and tell the Lead.
 8. Don't use connected tools you weren't given for this job (Gmail, Google Drive,
    Calendar, Claude Docs, the Notion connector, …).
-9. Anything in the FAMS Core "never without human approval" list (auth/security,
-   billing, pricing, SARS logic, production infrastructure, …) → escalate to the Lead,
-   who escalates to the FAMS Product Leader.
+9. Anything on the factory-core human-approval list (§3.4: auth/security, billing,
+   pricing, SARS logic, production infrastructure, …) → escalate to the Lead, who
+   escalates to the FAMS Product Leader.
+10. **Live FAMS-API:** only through the dedicated agent account from the VM secrets, only
+   login and read calls, never a call that creates, changes or deletes data; unit tests
+   always mock the network (factory-vue-shared §3).
 
 ## Run discipline (Paperclip)
 
